@@ -52,8 +52,8 @@ int main(int argc, char *argv[])
     do
     {
         data_t readData;
-        rr = read(inputPipe, &readData, sizeof(readData));
-        printf("%d\n", rr);
+        //rr = read(inputPipe, &readData, sizeof(readData));
+
     } while (rr != 0);
 
     // Eliminar lista de clientes
