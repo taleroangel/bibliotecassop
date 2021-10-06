@@ -196,7 +196,9 @@ void iniciarComunicacion(
     // pipe[READ] tiene el pipe de lectura (Servidor -> Cliente)
 
     //!1 Cliente abre el pipe (Cliente->Servidor) para ESCRITURA
-    pipe[WRITE] = open(pipeCTE_SER, O_WRONLY);
+
+    setvbuf(stdout, NULL, _IONBF, 0);
+    pipe[WRITE] = open(pipeCTE_SER, O_WRONLY | O_NONBLOCK);
     if (pipe[WRITE] < 0)
     {
         perror("Error de comunicación con el servidor"); // Manejar error
@@ -233,6 +235,8 @@ void iniciarComunicacion(
         exit(ERROR_PIPE_CTE_SER);
     }
 
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     //!3 Cliente abre el pipe (Servidor->Cliente) para LECTURA
     pipe[READ] = open(pipeSER_CTE, O_RDONLY);
     if (pipe[READ] < 0)
@@ -243,6 +247,9 @@ void iniciarComunicacion(
         close(pipe[WRITE]);
         exit(ERROR_PIPE_CTE_SER);
     }
+
+    // TEST
+    printf("TEST");
 
     //!4 Cliente envía a Servidor el nombre del pipe (Servidor->Cliente)
     data_t com;                                  // Estructura a enviar por el pipe
@@ -288,6 +295,9 @@ void iniciarComunicacion(
     struct timeval start, now;
     time_t elapsedTime;         // Tiempo transcurrido
     gettimeofday(&start, NULL); // Momento inicial
+
+    // TEST
+    printf("TEST: %d", start.tv_sec);
 
     data_t expect; // Estructura que se espera
     while (read(pipe[READ], &expect, sizeof(expect)) == 0)

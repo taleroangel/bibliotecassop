@@ -48,11 +48,13 @@ int main(int argc, char *argv[])
     clients.clientArray = (client_t *)malloc(sizeof(client_t));
 
     // Agregar clientes
-    int rr;
+    int rr = 0;
     do
     {
         data_t readData;
         //rr = read(inputPipe, &readData, sizeof(readData));
+        sleep(10);
+        rr++;
 
     } while (rr != 0);
 
