@@ -1,13 +1,16 @@
+CC	= @gcc
+FLAGS = -Wall
+
 all: client server
 
-server: server.o nom.h
-	gcc -o server server.o
+server: server.o
+	$(CC) $(FLAGS) -o $@ $<
 
-server.o: server.c nom.h
-	gcc -c server.c
+server.o: server.c server.h common.h data.h
+	$(CC) $(FLAGS) -o $@ $<
 
-client: client.o nom.h
-	gcc -o client client.o
+client: client.o
+	$(CC) $(FLAGS) -o $@ $<
 
-client.o: client.c nom.h
-	gcc -c client.c
+client.o: client.c client.h common.h data.h
+	$(CC) $(FLAGS) -o $@ $<

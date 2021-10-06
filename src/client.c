@@ -10,82 +10,44 @@
  * Bogotá D.C - Colombia
  */
 
-/* ----------------------------- STD Libraries ----------------------------- */
+/* -------------------------------  Libraries ------------------------------- */
+// ISO C libraries
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+
+// POSIX syscalls
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
+#include <sys/time.h>
 
-/* ----------------------------- Definiciones ----------------------------- */
-#define TAM_STRING 20
-
-/* --------------------------- Lista de errores --------------------------- */
-#define ARG_INCORRECTOS 1
-#define ARCHIVO_NO_EXISTE 2
-#define ERROR_CIERRE_ARCHIVO 3
-
-/* ------------------------ Prototipos de funciones ------------------------ */
-
-/**
- * @brief Mostrar el uso correcto del ejecutable con sus flags
- * 
- */
-void mostrarUso(void);
-
-/**
- * @brief Verificar y manipular los argumentos recibidos
- * 
- * @param argc Numero de argumentos
- * @param argv Vector con los argumentos
- * @param pipeNom RETORNA: nombre del pipe
- * @param fileNom RETORNA: nombre del archivo
- * @return true Se utilizó un archivo
- * @return false No se utilizó un archivo, por lo tanto ignorar el contenido de fileNom
- */
-bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom);
-
-/**
- * @brief Separar el argumento del nombre de archivo
- * 
- * @param origen Argumento con el nombre de archivo EJ: -pNombrePipe
- * @param destino String que tendrá el nombre del archivo EJ: NombrePipe
- */
-void cortarArgumentos(char *origen, char *destino);
-
-/**
- * @brief Intentar abrir un pipeNominal o Archivo en modo de sólo lectura
- * 
- * @param nombre nombre del archivo o pipe
- * @return int File Descriptor del archivo
- */
-int abrirArchivo(char *nombre);
-
-/**
- * @brief Cerrar un archivo o un pipe
- * 
- * @param fd File descriptor del archivo a cerrar
- */
-void cerrarArchivo(int fd);
+// Header propias
+#include "common.h"
+#include "client.h"
+#include "data.h"
 
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
 {
     // Manejar los argumentos
-    char nombreArchivo[TAM_STRING], nombrePipe[TAM_STRING];
-    bool usoArchivo;
+    char nombreArchivo[TAM_STRING], // Nombre archivo
+        pipeServidor[TAM_STRING],   // Nombre pipe (Cliente -> Servidor)
+        pipeCliente[TAM_STRING];    // Nombre pipe (Servidor -> Cliente)
 
-    usoArchivo = manejarArgumentos(argc, argv, nombrePipe, nombreArchivo);
-    int archivofd = -1, pipefd = -1;
+    int pipe[2];       // FD's de los pipes
+    bool archivoUsado; // Flag para saber si un archivo está siendo usado
 
-    // Abrir el pipe en sólo lectura
-    pipefd = abrirArchivo(nombrePipe);
+    archivoUsado = manejarArgumentos(argc, argv, pipeServidor, nombreArchivo);
+    int archivofd = -1;
+
+    // Iniciar la comunicación con el servidor
+    iniciarComunicacion(pipeServidor, pipeCliente, pipe);
 
     // Manejar el archivo
-    if (usoArchivo)
+    if (archivoUsado)
     { // Si utilizó el archivo
         // Abrir el archivo
         archivofd = abrirArchivo(nombreArchivo);
@@ -97,89 +59,85 @@ int main(int argc, char *argv[])
     }
 
     // Cerrar archivos abiertos
-    cerrarArchivo(pipefd);
-    if (usoArchivo)
+    if (archivoUsado)
         cerrarArchivo(archivofd);
 
     return EXIT_SUCCESS;
 }
 
 /* ----------------------- Definiciones de funciones ----------------------- */
+
+// Manejo de argumentos
+
 void mostrarUso(void)
 {
-    fprintf(stderr, "Uso: ./client [-i archivo] -p pipe\n");
+    fprintf(stderr, "Uso: ./client [-i Archivo] -p NombreDelPipe\n");
     fprintf(stderr, "[-i archivo] es opcional!\n");
-    exit(ARG_INCORRECTOS);
+    exit(ERROR_ARG_NOVAL);
 }
 
 bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
 {
-    // Ya se usaron los argumentos I y P?
-    bool argI = false, argP = false, usoArchivo = false;
-    char temp1[TAM_STRING], temp2[TAM_STRING];
+    // Flags para saber si ya se usaron los argumentos -i -p y si el archivo
+    // fue abierto con -i
 
-    // Manipular los argumentos
+    bool argArchivo = false;
+    bool argNombrePipe = false;
+    bool archivoUsado = false;
+
+    // Saber cómo reaccionar antes determinado número de argumentos
     switch (argc)
     {
-    case 2: // Sólo se usó el argumento -p
+    case 3: // Sólo se usó el argumento -p
         if (argv[1][0] == '-' && argv[1][1] == 'p')
-        {
-            // Retornar el nombre del pipe
-            cortarArgumentos(argv[1], temp1);
-            strcpy(pipeNom, temp1);
-        }
+            // Retornar el nombre del pipe (recortado sin el -p)
+            strcpy(pipeNom, argv[2]);
 
-        else
+        else // Argumentos incorrectos
             mostrarUso();
 
         break;
 
-    case 3: // Se utilizaron -i y -p
-
-        // Verificar que sólo se hayan utilizado flags -i o -p
-        for (int i = 1; i < argc; i++)
-            if (argv[i][0] != '-')
-                mostrarUso();
+    case 5: // Se utilizaron -i y -p
 
         // Filtrar los argumentos
         while ((argc > 1) && (argv[1][0] == '-'))
         {
+            // Por cada flag
             switch (argv[1][1])
             {
-            case 'i':
-
+            case 'i': // Caso de archivo
                 // Verificar si ya se usó el argumento
-                if (argI)
+                if (argArchivo)
                 {
-                    printf("Argumento ya fue utilizado!: %s\n", argv[1]);
+                    printf("El argumento %s ya fue utilizado!\n", argv[1]);
                     mostrarUso();
                 }
 
                 // El argumento ya fue utilizado!
-                argI = true;
-                usoArchivo = true;
+                argArchivo = true;
+                // Un archivo fue utilizado
+                archivoUsado = true;
 
                 // retornar el nombre de archivo
-                cortarArgumentos(argv[1], temp2);
-                strcpy(fileNom, temp2);
+                strcpy(fileNom, argv[2]);
 
                 break;
 
             case 'p':
 
                 // Verificar si ya se usó el argumento
-                if (argP)
+                if (argNombrePipe)
                 {
-                    printf("Argumento ya fue utilizado!: %s\n", argv[1]);
+                    printf("El argumento %s ya fue utilizado!\n", argv[1]);
                     mostrarUso();
                 }
 
                 // El argumento ya fue utilizado!
-                argP = true;
+                argNombrePipe = true;
 
                 // Retornar el nombre del pipe
-                cortarArgumentos(argv[1], temp1);
-                strcpy(pipeNom, temp1);
+                strcpy(pipeNom, argv[2]);
 
                 break;
 
@@ -188,8 +146,8 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
                 mostrarUso();
             }
 
-            argv++;
-            argc--;
+            argv += 2; // Mover el puntero de argumentos
+            argc -= 2; // Reducir cantidad de argumentos para el while
         }
 
         break;
@@ -199,14 +157,10 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
         break;
     }
 
-    return usoArchivo;
+    return archivoUsado;
 }
 
-void cortarArgumentos(char *origen, char *destino)
-{
-    for (int i = 2, j = 0; i < strlen(origen); i++, j++)
-        *(destino + j) = *(origen + i);
-}
+// Manejo de archivos
 
 int abrirArchivo(char *nombre)
 {
@@ -214,8 +168,8 @@ int abrirArchivo(char *nombre)
     int fd = open(nombre, O_RDONLY);
     if (fd < 0)
     {
-        perror("Error");
-        exit(ARCHIVO_NO_EXISTE);
+        perror("Error en lectura de archivos");
+        exit(ERROR_APERTURA_ARCHIVO);
     }
 
     return fd;
@@ -225,7 +179,152 @@ void cerrarArchivo(int fd)
 {
     if (close(fd) < 0)
     {
-        perror("Error:");
+        perror("Error de archivo");
         exit(ERROR_CIERRE_ARCHIVO);
     }
+}
+
+// Protocolos de comunicación
+
+void iniciarComunicacion(
+    const char *pipeCTE_SER,
+    char *pipeSER_CTE,
+    int *pipe)
+{
+    // int *pipe Arreglo con los fd de los pipes
+    // pipe[WRITE] tiene el pipe de escritura (Cliente -> Servidor)
+    // pipe[READ] tiene el pipe de lectura (Servidor -> Cliente)
+
+    //!1 Cliente abre el pipe (Cliente->Servidor) para ESCRITURA
+    pipe[WRITE] = open(pipeCTE_SER, O_WRONLY);
+    if (pipe[WRITE] < 0)
+    {
+        perror("Error de comunicación con el servidor"); // Manejar error
+        exit(ERROR_PIPE_SER_CTE);
+    }
+
+    //!2 Cliente crea un pipe (Servidor->Cliente)
+    /* Crear el nombre del pipe, para esto se toma el macro PIPE_NOM_CTE y se
+       le concatena el pid del proceso Cliente quien lo crea */
+
+    pid_t client_pid = getpid();
+
+    // 2.1 Borrar los contenidos actuales de pipeSER_CTE
+    memset(pipeSER_CTE, 0, sizeof(pipeSER_CTE));
+
+    // 2.2 Copiar la macro a la variable
+    strcpy(pipeSER_CTE, PIPE_NOM_CTE);
+
+    // 2.3 Concatenar el pid
+    char buffer[TAM_STRING];
+    sprintf(buffer, "%d", client_pid);
+    strcat(pipeSER_CTE, buffer);
+
+    // Ya se tiene el nombre disponible para crear el pipe de LECTURA
+
+    // Crear el pipe nominal
+    unlink(pipeSER_CTE);
+    if (mkfifo(pipeSER_CTE, PERMISOS_PIPE) < 0)
+    {
+        perror("Error de conexión con el servidor"); // Manejar Error
+
+        // Cerrar recursos abiertos
+        close(pipe[WRITE]);
+        exit(ERROR_PIPE_CTE_SER);
+    }
+
+    //!3 Cliente abre el pipe (Servidor->Cliente) para LECTURA
+    pipe[READ] = open(pipeSER_CTE, O_RDONLY);
+    if (pipe[READ] < 0)
+    {
+        perror("Error de conexión con el servidor"); // Manejar Error
+
+        // Cerrar recursos abiertos
+        close(pipe[WRITE]);
+        exit(ERROR_PIPE_CTE_SER);
+    }
+
+    //!4 Cliente envía a Servidor el nombre del pipe (Servidor->Cliente)
+    data_t com;                                  // Estructura a enviar por el pipe
+    com.client = client_pid;                     // PID quien envía
+    com.type = SIGNAL;                           // Tipo de dato
+    com.data.signal.code = START_COM;            // Tipo de señal
+    strcpy(com.data.signal.buffer, pipeSER_CTE); // Nombre del pipe
+
+    // Intentar enviar los datos
+    int aux = 0, attemps = 0;
+    do
+    {
+        aux = write(pipe[WRITE], &com, sizeof(com));
+
+        // Si la escritura falla
+        if (aux < 0)
+        {
+            // Se intenta INTENTOS_ESCRITURA veces
+            if (attemps > INTENTOS_ESCRITURA)
+            {
+                // Muchos intentos fallidos
+                perror("Error al escribir");
+                fprintf(stderr, "Demasiados intentos, abortando...\n");
+
+                // Cerrar los archivos abiertos
+                close(pipe[READ]);
+                close(pipe[WRITE]);
+
+                // Terminar
+                exit(ERROR_ESCRITURA);
+            }
+
+            perror("Error al escribir");
+            printf("Intentando de nuevo...\n");
+            attemps++;
+        }
+
+    } while (aux < 0);
+
+    //!8. Cliente espera una señal de Servidor
+
+    // Crear un TIMEOUT
+    struct timeval start, now;
+    time_t elapsedTime;         // Tiempo transcurrido
+    gettimeofday(&start, NULL); // Momento inicial
+
+    data_t expect; // Estructura que se espera
+    while (read(pipe[READ], &expect, sizeof(expect)) == 0)
+    {
+        // Obtener el momento actual
+        gettimeofday(&now, NULL);
+        elapsedTime = now.tv_sec - start.tv_sec;
+
+        if (elapsedTime > TIMEOUT_COMUNICACION)
+        {
+            perror("Error");
+            fprintf(stderr, "Se superó el tiempo de espera(%ds) ...",
+                    TIMEOUT_COMUNICACION);
+
+            // Cerrar los recursos abiertos
+            close(pipe[READ]);
+            close(pipe[WRITE]);
+            exit(ERROR_COMUNICACION);
+        }
+    }
+
+    // Si hay una comunicación fallida
+    if (expect.data.signal.code == FAILED_COM)
+    {
+        // Cerrar los recursos abiertos
+        close(pipe[READ]);
+        close(pipe[WRITE]);
+
+        // Terminar el programa
+        perror("Comunicacion");
+        exit(ERROR_COMUNICACION);
+    }
+
+    // Señal de verificación
+    else if (expect.data.signal.code == SUCCEED_COM) // Confirmación exitosa
+        return;
+
+    // Cualquier otro valor es inesperado
+    fprintf(stderr, "Respuesta inesperada: %d\n", expect.data.signal.code);
 }
