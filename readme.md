@@ -17,11 +17,11 @@
 1. Cliente abre el pipe (Cliente->Servidor) para ESCRITURA
 2. Cliente crea un pipe (Servidor->Cliente)
 3. Cliente abre el pipe (Servidor->Cliente) para LECTURA
-4. Cliente envía a Servidor el nombre del pipe (Servidor->Cliente)
+4. Cliente envía a Servidor el nombre del pipe (Servidor->Cliente) mediante una señal [START_COM]
 5. Servidor abre el pipe (Servidor->Cliente) para ESCRITURA
 6. Servidor guarda la información de Cliente con su respectivo pipe de comunicación
 7. Servidor envía una señal de confirmación a Cliente
-8. Cliente espera una señal de Servidor
+8. Cliente espera una señal de Servidor [SUCCEED_COM]
 
 ### Cierre de la comunicación
 * No se puede finalizar una comunicación mientras una transacción está en curso
@@ -29,9 +29,12 @@
 **Cuando el Servidor termina comunicación:**
 * Si el Servidor termina la comunicación el proceso debe finalizar
 * Si Servidor termina la comunicación y aún hay clientes conectados, todos los clientes están obligados a cerrar comunicación y terminar la ejecución al igual que Servidor
-* Cada cliente se encarga de eliminar su propio pipe (Servidor->Cliente) y Servidor se encargará de eliminar el pipe de (Cliente->Servidor)
+* Servidor se encargará de eliminar el pipe de (Cliente->Servidor)
+
+Para evitar pérdida de información se realiza el siguiente protocolo:
 
 **Cuando el Cliente termina comunicación:**
+* Cuando un cliente pierda la comunicación debe terminar el proceso
 * el Cliente que quiera finalizar la comunicación debe eliminar el pipe (Servidor->Cliente) asociado
 
 1. Cliente manda una petición de terminación de comunicación al Servidor

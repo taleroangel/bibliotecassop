@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     int archivofd = -1;
 
     // Iniciar la comunicación con el servidor
-    iniciarComunicacion(pipeServidor, pipeCliente, pipe);
+    startCommunication(pipeServidor, pipeCliente, pipe);
 
     // Manejar el archivo
     if (archivoUsado)
@@ -110,7 +110,8 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
                 // Verificar si ya se usó el argumento
                 if (argArchivo)
                 {
-                    printf("El argumento %s ya fue utilizado!\n", argv[1]);
+                    fprintf(stderr,
+                            "El argumento %s ya fue utilizado!\n", argv[1]);
                     mostrarUso();
                 }
 
@@ -129,7 +130,8 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
                 // Verificar si ya se usó el argumento
                 if (argNombrePipe)
                 {
-                    printf("El argumento %s ya fue utilizado!\n", argv[1]);
+                    fprintf(stderr,
+                            "El argumento %s ya fue utilizado!\n", argv[1]);
                     mostrarUso();
                 }
 
@@ -142,7 +144,7 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
                 break;
 
             default:
-                printf("Argumento no válido: %s\n", argv[1]);
+                fprintf(stderr, "Argumento no válido: %s\n", argv[1]);
                 mostrarUso();
             }
 
@@ -165,7 +167,7 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
 int abrirArchivo(char *nombre)
 {
     // Intentar abrir un pipe en modo de sólo lectura
-    int fd = open(nombre, O_RDONLY);
+    int fd = open(nombre, O_RDONLY | O_NONBLOCK);
     if (fd < 0)
     {
         perror("Error en lectura de archivos");
@@ -186,7 +188,7 @@ void cerrarArchivo(int fd)
 
 // Protocolos de comunicación
 
-void iniciarComunicacion(
+void startCommunication(
     const char *pipeCTE_SER,
     char *pipeSER_CTE,
     int *pipe)
@@ -197,13 +199,15 @@ void iniciarComunicacion(
 
     //!1 Cliente abre el pipe (Cliente->Servidor) para ESCRITURA
 
-    setvbuf(stdout, NULL, _IONBF, 0);
     pipe[WRITE] = open(pipeCTE_SER, O_WRONLY | O_NONBLOCK);
     if (pipe[WRITE] < 0)
     {
         perror("Error de comunicación con el servidor"); // Manejar error
         exit(ERROR_PIPE_SER_CTE);
     }
+
+    // Notificar
+    fprintf(stdout, "Notificación: El pipe (Cliente->Servidor) fue abierto\n");
 
     //!2 Cliente crea un pipe (Servidor->Cliente)
     /* Crear el nombre del pipe, para esto se toma el macro PIPE_NOM_CTE y se
@@ -235,21 +239,23 @@ void iniciarComunicacion(
         exit(ERROR_PIPE_CTE_SER);
     }
 
-    setvbuf(stdout, NULL, _IONBF, 0);
+    //Notificación
+    fprintf(stdout, "Notificación: El pipe (Servidor->Cliente) fue creado\n");
 
     //!3 Cliente abre el pipe (Servidor->Cliente) para LECTURA
-    pipe[READ] = open(pipeSER_CTE, O_RDONLY);
+    pipe[READ] = open(pipeSER_CTE, O_RDONLY | O_NONBLOCK);
     if (pipe[READ] < 0)
     {
         perror("Error de conexión con el servidor"); // Manejar Error
 
         // Cerrar recursos abiertos
         close(pipe[WRITE]);
+        unlink(pipeSER_CTE);
         exit(ERROR_PIPE_CTE_SER);
     }
 
-    // TEST
-    printf("TEST");
+    //Notificación
+    fprintf(stdout, "Notificación: El pipe (Servidor->Cliente) fue abierto\n");
 
     //!4 Cliente envía a Servidor el nombre del pipe (Servidor->Cliente)
     data_t com;                                  // Estructura a enviar por el pipe
@@ -277,13 +283,15 @@ void iniciarComunicacion(
                 // Cerrar los archivos abiertos
                 close(pipe[READ]);
                 close(pipe[WRITE]);
+                unlink(pipeSER_CTE);
 
                 // Terminar
                 exit(ERROR_ESCRITURA);
             }
 
             perror("Error al escribir");
-            printf("Intentando de nuevo...\n");
+            fprintf(stderr, "Intentando de nuevo...\n");
+
             attemps++;
         }
 
@@ -296,8 +304,8 @@ void iniciarComunicacion(
     time_t elapsedTime;         // Tiempo transcurrido
     gettimeofday(&start, NULL); // Momento inicial
 
-    // TEST
-    printf("TEST: %d", start.tv_sec);
+    // Notificación
+    fprintf(stdout, "Notificación: Esperando respuesta del Servidor\n");
 
     data_t expect; // Estructura que se espera
     while (read(pipe[READ], &expect, sizeof(expect)) == 0)
@@ -308,13 +316,15 @@ void iniciarComunicacion(
 
         if (elapsedTime > TIMEOUT_COMUNICACION)
         {
-            perror("Error");
-            fprintf(stderr, "Se superó el tiempo de espera(%ds) ...",
+            fprintf(stderr, "Se superó el tiempo de espera (%ds) ...\
+            \nProceso abortado\n",
                     TIMEOUT_COMUNICACION);
 
             // Cerrar los recursos abiertos
             close(pipe[READ]);
             close(pipe[WRITE]);
+            unlink(pipeSER_CTE);
+
             exit(ERROR_COMUNICACION);
         }
     }
@@ -325,6 +335,7 @@ void iniciarComunicacion(
         // Cerrar los recursos abiertos
         close(pipe[READ]);
         close(pipe[WRITE]);
+        unlink(pipeSER_CTE);
 
         // Terminar el programa
         perror("Comunicacion");
@@ -333,7 +344,12 @@ void iniciarComunicacion(
 
     // Señal de verificación
     else if (expect.data.signal.code == SUCCEED_COM) // Confirmación exitosa
+    {
+        // Notificación
+        fprintf(stdout,
+                "Notificación: Comunicación establecida!\n");
         return;
+    }
 
     // Cualquier otro valor es inesperado
     fprintf(stderr, "Respuesta inesperada: %d\n", expect.data.signal.code);

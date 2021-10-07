@@ -20,17 +20,18 @@
 
 #define TAM_STRING 20 // Tamaño de los Strings
 
-#define PERMISOS_PIPE S_IRWXU   // Permiso para Leer, Escribir, Ejecutar
-#define INTENTOS_ESCRITURA 5    // Intentos de escritura en caso de falla
-#define TIMEOUT_COMUNICACION 10 // Tiempo límite (s) para establecer comunicación
+#define PERMISOS_PIPE S_IRUSR | S_IWUSR // Permiso para Leer, Escribir, Ejecutar
+#define INTENTOS_ESCRITURA 5            // Intentos de escritura en caso de falla
+#define TIMEOUT_COMUNICACION 10         // Tiempo límite (s) para establecer comunicación
 
 #define WRITE 0 // Definiciones para el vector fd
 #define READ 1  // Definiciones para el vector fd
 
+/* -------------------------------- Señales -------------------------------- */
 /* ---------------- Señales de confirmación de comunicación ---------------- */
 
-#define START_COM 1   // Señal de confirmación de comunicación
-#define STOP_COM -1   // Señal de confirmación de comunicación
+#define START_COM 1   // Señal para empezar comunicación
+#define STOP_COM -1   // Señal para detener confirmación
 #define SUCCEED_COM 2 // Señal de confirmación de comunicación
 #define FAILED_COM -2 // Señal de fallo en la comunicación (TERMINACION)
 
@@ -53,5 +54,8 @@
 // Lectura / Escritura
 #define ERROR_LECTURA 8
 #define ERROR_ESCRITURA 9
+
+// Otros errores
+#define ERROR_PID_NOT_EXIST 10
 
 #endif // __COMMON_H__

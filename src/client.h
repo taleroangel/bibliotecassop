@@ -80,7 +80,7 @@ void cerrarArchivo(int fd);
  * Use las macros WRITE y READ con pipe
  * EJ: para escribir en el pipe se utilizar pipe[WRITE]
  */
-static void iniciarComunicacion(
+static void startCommunication(
     const char *pipeCTE_SER,
     char *pipeSER_CTE,
     int *pipe);

@@ -74,14 +74,45 @@ static void manejarArgumentos(
  * @param pipeCTE_SER Nombre del pipe (Cliente->Servidor)
  * @return fd del pipe
  */
-static int iniciarComunicacion(const char *pipeCTE_SER);
+static int startCommunication(const char *pipeCTE_SER);
 
 /**
  * @brief Agregar un cliente a la lista
  * 
  * @param clients Apuntador a la lista de clientes
  * @param package Copia del paquete recibido por el pipe
+ * @return Exit error code or SUCCESS
  */
-int conectarCliente(struct client_list *clients, data_t package);
+int connectClient(struct client_list *clients, data_t package);
+
+/* --------------------------- Manejo de clientes --------------------------- */
+
+/**
+ * @brief Crear un Cliente
+ * 
+ * @param pipefd FD del pipe del cliente
+ * @param clientpid PID del cliente
+ * @param pipenom Nombre del pipe del cliente
+ * @return client_t Estructura con el cliente
+ */
+client_t createClient(int pipefd, pid_t clientpid, char *pipenom);
+
+/**
+ * @brief Guardar un cliente en el arreglo
+ * 
+ * @param clients Apuntador a arreglo de clientes
+ * @param client Cliente a guardar
+ * @return non 0 if error
+ */
+int storeClient(struct client_list *clients, client_t client);
+
+/**
+ * @brief Remover un cliente dado su pid
+ * 
+ * @param clients Apuntador a arreglo de clientes
+ * @param clientToRemove Cliente a guardar
+ * @return non 0 if error
+ */
+int removeClient(struct client_list *clients, pid_t clientToRemove);
 
 #endif // __SERVER_H__

@@ -31,15 +31,21 @@
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
 {
-    char nombrePipe[TAM_STRING],
+    char pipeCTE_SER[TAM_STRING],
         archivoEntrada[TAM_STRING],
         archivoSalida[TAM_STRING];
 
     // Manejar los argumentos
-    manejarArgumentos(argc, argv, nombrePipe, archivoEntrada, archivoSalida);
+    manejarArgumentos(argc, argv, pipeCTE_SER, archivoEntrada, archivoSalida);
 
     // Iniciar la comunicación
-    int inputPipe = iniciarComunicacion(nombrePipe);
+    int pipeRead = startCommunication(pipeCTE_SER);
+
+    while (true)
+    {
+        sleep(15);
+        break;
+    }
 
     // Lista de los clientes;
     struct client_list clients;
@@ -47,20 +53,21 @@ int main(int argc, char *argv[])
     clients.nClients = 0;
     clients.clientArray = (client_t *)malloc(sizeof(client_t));
 
-    // Agregar clientes
-    int rr = 0;
-    do
-    {
-        data_t readData;
-        //rr = read(inputPipe, &readData, sizeof(readData));
-        sleep(10);
-        rr++;
+    data_t package;
 
-    } while (rr != 0);
+    while (read(pipeRead, &package, sizeof(package)) != 0)
+    {
+        if (connectClient(&clients, package) == SUCCESS)
+        {
+            sleep(10);
+            break;
+        }
+    }
 
     // Eliminar lista de clientes
     free(clients.clientArray);
-    unlink(nombrePipe);
+
+    unlink(pipeCTE_SER);
 }
 
 /* ----------------------------- Definiciones ----------------------------- */
@@ -69,7 +76,7 @@ int main(int argc, char *argv[])
 
 void mostrarUso(void)
 {
-    fprintf(stderr,
+    fprintf(stdout,
             "Uso: ./server -p pipeReceptor -f baseDeDatos -s archivoSalida\n");
     exit(ERROR_ARG_NOVAL);
 }
@@ -95,7 +102,7 @@ void manejarArgumentos(int argc,
             // Verificar si ya se usó el argPipeumento
             if (argPipe)
             {
-                printf("El argumento %s ya fue utilizado!\n", argv[1]);
+                fprintf(stdout, "El argumento %s ya fue utilizado!\n", argv[1]);
                 mostrarUso();
             }
 
@@ -111,7 +118,7 @@ void manejarArgumentos(int argc,
             // Verificar si ya se usó el argInumento
             if (argIn)
             {
-                printf("El argumento %s ya fue utilizado!\n", argv[1]);
+                fprintf(stdout, "El argumento %s ya fue utilizado!\n", argv[1]);
                 mostrarUso();
             }
 
@@ -127,7 +134,7 @@ void manejarArgumentos(int argc,
             // Verificar si ya se usó el argOutumento
             if (argOut)
             {
-                printf("El argumento %s ya fue utilizado!\n", argv[1]);
+                fprintf(stdout, "El argumento %s ya fue utilizado!\n", argv[1]);
                 mostrarUso();
             }
 
@@ -140,7 +147,7 @@ void manejarArgumentos(int argc,
             break;
 
         default:
-            printf("Argumento no válido: %s\n", argv[1]);
+            fprintf(stdout, "Argumento no válido: %s\n", argv[1]);
             mostrarUso();
         }
 
@@ -151,9 +158,10 @@ void manejarArgumentos(int argc,
 
 /* ----------------------- Protocolos de comunicación ----------------------- */
 
-int iniciarComunicacion(const char *pipeCTE_SER)
+int startCommunication(const char *pipeCTE_SER)
 {
     // Crear el pipe (Cliente -> Servidor)
+
     unlink(pipeCTE_SER);
     if (mkfifo(pipeCTE_SER, PERMISOS_PIPE) < 0)
     {
@@ -161,18 +169,24 @@ int iniciarComunicacion(const char *pipeCTE_SER)
         exit(ERROR_PIPE_SER_CTE);
     }
 
+    // Notificación
+    fprintf(stdout, "Notificación: Se ha creado el pipe (Cliente->Servidor)\n");
+
     // Abrir el pipe para lectura
-    int pipe = open(pipeCTE_SER, O_RDONLY);
+    int pipe = open(pipeCTE_SER, O_RDONLY | O_NONBLOCK);
     if (pipe < 0)
     {
         perror("Error de comunicación"); // Manejar Error
         exit(ERROR_PIPE_CTE_SER);
     }
 
+    // Notificación
+    fprintf(stdout, "Notificación: Se ha abierto el pipe (Cliente->Servidor)\n");
+
     return pipe;
 }
 
-int conectarCliente(struct client_list *clients, data_t package)
+int connectClient(struct client_list *clients, data_t package)
 {
     if (package.type != SIGNAL && package.data.signal.code != START_COM)
     {
@@ -180,18 +194,81 @@ int conectarCliente(struct client_list *clients, data_t package)
         return ERROR_COMUNICACION;
     }
 
-    // Try to open the pipe
-    int pipefd = open(package.data.signal.buffer, O_WRONLY);
+    //!5. Servidor abre el pipe (Servidor->Cliente) para ESCRITURA
+    //Try to open the pipe
+    int pipefd = open(package.data.signal.buffer, O_WRONLY | O_NONBLOCK);
     if (pipefd < 0)
     {
         perror("Error en comunicación");
         return ERROR_PIPE_SER_CTE;
     }
 
-    // Save the client
-    clients->nClients++;
+    // Notificación
+    fprintf(stdout,
+            "Notificación: El pipe (Servidor->Cliente) fue abierto!: %s\n",
+            package.data.signal.buffer);
 
-    client_t *aux =
+    //!6. Servidor guarda la información de Cliente con su respectivo pipe
+    //!de comunicación
+
+    // Leer los datos en el paquete y convertirlo en cliente
+    client_t nuevo = createClient(
+        pipefd, package.client, package.data.signal.buffer);
+
+    // Guardar el nuevo cliente
+    if (storeClient(clients, nuevo) != SUCCESS)
+        return ERROR_MEMORY;
+
+    // Notificación
+    fprintf(stdout,
+            "Notificación: Nuevo cliente agregado\n");
+
+    //!7. Servidor envía una señal de confirmación a Cliente
+
+    // Crear una señal
+    data_t toSent;
+    toSent.type = SIGNAL;
+    toSent.client = nuevo.clientPID;
+    toSent.data.signal.code = SUCCEED_COM;
+
+    // En caso de que el pipe se cierre justo en el envío de la señal
+    if (write(nuevo.pipe, &toSent, sizeof(toSent)) < 0)
+    {
+        perror("Error");
+        fprintf(stderr, "Pipe cerrado inesperadamente");
+
+        // Desalojar recursos
+        removeClient(clients, nuevo.clientPID);
+        close(package.data.signal.buffer);
+
+        return ERROR_PIPE_SER_CTE;
+    }
+
+    // Notificación
+    fprintf(stdout,
+            "Notificación: Señal enviada\n");
+
+    return SUCCESS;
+}
+
+/* --------------------------- Manejo de clientes --------------------------- */
+
+client_t createClient(int pipefd, pid_t clientpid, char *pipenom)
+{
+    client_t clienteNuevo;
+    clienteNuevo.clientPID = clientpid;
+    clienteNuevo.pipe = pipefd;
+    strcpy(clienteNuevo.pipeNom, pipenom);
+    return clienteNuevo;
+}
+
+int storeClient(struct client_list *clients, client_t client)
+{
+    // Add 1 to the client counter
+    int pos_newClient = clients->nClients++;
+
+    // Realloc memory for the new client
+    client_t *aux = // Hacer el vector más grande y guardarlo en un nuevo apuntador
         (client_t *)realloc(
             clients->clientArray,
             sizeof(client_t) * clients->nClients);
@@ -207,12 +284,59 @@ int conectarCliente(struct client_list *clients, data_t package)
     // Set the new pointer
     clients->clientArray = aux;
 
-    // Ahora agregar el nuevo cliente
-    int newClient = clients->nClients - 1;
+    // Store the new client
+    clients->clientArray[pos_newClient] = client;
 
-    clients->clientArray[newClient].clientPID = package.client;
-    strcpy(clients->clientArray[newClient].pipeNom, package.data.signal.buffer);
-    clients->clientArray[newClient].pipe = pipefd;
+    return SUCCESS;
+}
+
+int removeClient(struct client_list *clients, pid_t clientToRemove)
+{
+    // Search for the client to remove and move it to the last position
+    if (clients->clientArray[clients->nClients - 1].clientPID != clientToRemove)
+    {
+        bool found = false;
+        for (int i = 0; i < clients->nClients; i++)
+        {
+            if (clients->clientArray[i].clientPID == clientToRemove)
+            {
+                found = true;
+
+                // Set variables
+                client_t toRemove = clients->clientArray[i];
+                client_t last = clients->clientArray[clients->nClients - 1];
+
+                // Swap
+                clients->clientArray[i] = last;
+                clients->clientArray[clients->nClients - 1] = toRemove;
+
+                break;
+            }
+        }
+
+        if (!found) // If PID was not found
+            return ERROR_PID_NOT_EXIST;
+    }
+
+    // Realloc the array
+    clients->nClients--;
+
+    // Realloc memory for the new client
+    client_t *aux = // Hacer el vector más grande y guardarlo en un nuevo apuntador
+        (client_t *)realloc(
+            clients->clientArray,
+            sizeof(client_t) * clients->nClients);
+
+    // If allocation failed
+    if (aux == NULL)
+    {
+        perror("Error");
+        fprintf(stderr, "No es posible eliminar un cliente...");
+        return ERROR_MEMORY;
+    }
+
+    // Set the new pointer
+    clients->clientArray = aux;
 
     return SUCCESS;
 }
