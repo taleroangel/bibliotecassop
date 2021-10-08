@@ -48,19 +48,56 @@ int main(int argc, char *argv[])
 
     // Paquete temporal donde se guarda lo recibido por el pipe
     data_t package;
-    // Leer contenidos del pipe
+    int return_status;
+
+    // Leer contenidos del pipe continuamente hasta que no hayan lectores
     while (read(pipeRead, &package, sizeof(package)) != 0)
     {
-        if (connectClient(&clients, package) == SUCCESS)
+        // Interpretar el tipo de mensaje
+        switch (package.type)
         {
+        case SIGNAL:
+            return_status = interpretSignal(&clients, package);
+            if (return_status != SUCCESS_GENERIC)
+            {
+                fprintf(stderr,
+                        "Hubo un problema en la lectura de un paquete\n");
+                fprintf(stderr, "SEÑAL: Código de error: %d\n", return_status);
+            }
+            break;
+
+        case BOOK:
+            return_status = -1; // Aquí va la función que maneja los libros
+            if (return_status != SUCCESS_GENERIC)
+            {
+                fprintf(stderr,
+                        "Hubo un problema en la lectura de un paquete\n");
+                fprintf(stderr, "LIBRO: Código de error: %d\n", return_status);
+            }
+            break;
+
+        default:
+            fprintf(stderr, "Hubo un problema en la lectura de un paquete\n");
             break;
         }
     }
 
+    // Notificación
+    fprintf(stdout,
+            "Todos los clientes se han desconectado, cerrando el servidor...\n");
+
     // Eliminar lista de clientes
     free(clients.clientArray);
+
     // Deshacer el pipe de Servidor
+    close(pipeRead);
     unlink(pipeCTE_SER);
+
+    // Notificación
+    fprintf(stdout,
+            "Se ha cerrado el pipe (Cliente->Servidor)...\n");
+
+    return EXIT_SUCCESS;
 }
 
 /* ----------------------------- Definiciones ----------------------------- */
@@ -210,7 +247,7 @@ int connectClient(struct client_list *clients, data_t package)
         pipefd, package.client, package.data.signal.buffer);
 
     // Guardar el nuevo cliente
-    if (storeClient(clients, nuevo) != SUCCESS)
+    if (storeClient(clients, nuevo) != SUCCESS_GENERIC)
         return ERROR_MEMORY;
 
     // Notificación
@@ -242,7 +279,62 @@ int connectClient(struct client_list *clients, data_t package)
     fprintf(stdout,
             "Notificación: Señal enviada\n");
 
-    return SUCCESS;
+    return SUCCESS_GENERIC;
+}
+
+int disconnectClient(struct client_list *clients, data_t package)
+{
+    if (package.type != SIGNAL && package.data.signal.code != STOP_COM)
+    {
+        fprintf(stderr, "Unexpected instruction\n");
+        return ERROR_COMUNICACION;
+    }
+
+    pid_t client = package.client;
+    int pipeSER_CTE = searchClient(clients, client);
+
+    //! 2. Servidor cierra la escritura del pipe (Servidor->Cliente)
+    if (close(pipeSER_CTE) < 0)
+    {
+        perror("Error");
+        return ERROR_PIPE_SER_CTE;
+    }
+
+    //!3. Servidor actualiza la lista de clientes
+    int temp = removeClient(clients, client);
+    if (temp != SUCCESS_GENERIC)
+    {
+        fprintf(stderr, "No se pudo borrar el cliente");
+        return temp;
+    }
+
+    return SUCCESS_GENERIC;
+}
+
+int interpretSignal(struct client_list *clients, data_t package)
+{
+    switch (package.data.signal.code)
+    {
+    case START_COM:
+        return connectClient(clients, package);
+        break;
+    }
+
+    return FAILURE_GENERIC;
+}
+
+data_t generateReponse(pid_t dest, int code, char *buffer)
+{
+    // Paquet creation
+    data_t reponse;
+    reponse.client = dest;
+    reponse.type = SIGNAL;
+
+    // Signal construction
+    reponse.data.signal.code = code;
+    strcpy(reponse.data.signal.buffer, buffer);
+
+    return reponse;
 }
 
 /* --------------------------- Manejo de clientes --------------------------- */
@@ -281,7 +373,7 @@ int storeClient(struct client_list *clients, client_t client)
     // Store the new client
     clients->clientArray[pos_newClient] = client;
 
-    return SUCCESS;
+    return SUCCESS_GENERIC;
 }
 
 int removeClient(struct client_list *clients, pid_t clientToRemove)
@@ -332,5 +424,14 @@ int removeClient(struct client_list *clients, pid_t clientToRemove)
     // Set the new pointer
     clients->clientArray = aux;
 
-    return SUCCESS;
+    return SUCCESS_GENERIC;
+}
+
+int searchClient(struct client_list *clients, pid_t client)
+{
+    for (int i = 0; i < clients->nClients; i++)
+        if (clients->clientArray[i].clientPID == client)
+            return clients->clientArray[i].pipe;
+
+    return ERROR_PID_NOT_EXIST;
 }

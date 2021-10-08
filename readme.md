@@ -31,8 +31,6 @@
 * Si Servidor termina la comunicación y aún hay clientes conectados, todos los clientes están obligados a cerrar comunicación y terminar la ejecución al igual que Servidor
 * Servidor se encargará de eliminar el pipe de (Cliente->Servidor)
 
-Para evitar pérdida de información se realiza el siguiente protocolo:
-
 **Cuando el Cliente termina comunicación:**
 * Cuando un cliente pierda la comunicación debe terminar el proceso
 * el Cliente que quiera finalizar la comunicación debe eliminar el pipe (Servidor->Cliente) asociado

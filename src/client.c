@@ -50,7 +50,14 @@ int main(int argc, char *argv[])
     if (archivoUsado)
     { // Si utilizó el archivo
         // Abrir el archivo
-        archivofd = abrirArchivo(nombreArchivo);
+        archivofd = open(nombreArchivo, O_RDWR);
+        if (archivofd < 0)
+        {
+            perror("Archivo");
+            return ERROR_APERTURA_ARCHIVO;
+        }
+
+        //TODO hacer quien sabe que con ese archivo
     }
 
     else
@@ -58,13 +65,16 @@ int main(int argc, char *argv[])
         // Mostrar el menú
     }
 
-    // Cerrar el pipe abierto
-    unlink(pipeSER_CTE);
-
     // Cerrar archivos abiertos
     if (archivoUsado)
-        cerrarArchivo(archivofd);
+        if (close(archivofd) < 0)
+            return ERROR_CIERRE_ARCHIVO;
 
+    // Cerrar la comunicacion
+    stopCommunication(pipe, pipeSER_CTE);
+
+    // Notificar
+    fprintf(stdout, "Cliente finaliza correctamente\n");
     return EXIT_SUCCESS;
 }
 
@@ -165,30 +175,6 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
     return archivoUsado;
 }
 
-// Manejo de archivos
-
-int abrirArchivo(char *nombre)
-{
-    // Intentar abrir un pipe en modo de sólo lectura
-    int fd = open(nombre, O_RDONLY);
-    if (fd < 0)
-    {
-        perror("Error en lectura de archivos");
-        exit(ERROR_APERTURA_ARCHIVO);
-    }
-
-    return fd;
-}
-
-void cerrarArchivo(int fd)
-{
-    if (close(fd) < 0)
-    {
-        perror("Error de archivo");
-        exit(ERROR_CIERRE_ARCHIVO);
-    }
-}
-
 // Protocolos de comunicación
 
 void startCommunication(
@@ -286,6 +272,10 @@ void startCommunication(
     } while (aux < 0);
 
     //!4 Cliente abre el pipe (Servidor->Cliente) para LECTURA
+
+    //? Este pipe se abre en modo O_NONBLOCK porque puede
+    //? recibir confirmaciones asíncronas
+
     pipe[READ] = open(pipeSER_CTE, O_RDONLY);
     if (pipe[READ] < 0)
     {
@@ -356,4 +346,58 @@ void startCommunication(
 
     // Cualquier otro valor es inesperado
     fprintf(stderr, "Respuesta inesperada: %d\n", expect.data.signal.code);
+}
+
+static void stopCommunication(int *pipe, char *pipeSER_CTE)
+{
+    //!1. Cliente manda una petición de terminación de comunicación al Servidor
+    data_t packet = generateSignal(123, STOP_COM, NULL), tmp;
+
+    // Notificar
+    fprintf(stdout, "Intentando cerrar comunicación\n");
+
+    if (write(pipe[WRITE], &packet, sizeof(packet)) < 0)
+        perror("Escritura");
+    // NO se termina el proceso, para que así elimine el pipe
+    // Sólo se intenta escribir indeterminadamente
+
+    //!4. Cliente espera a que se cierre el pipe
+    while (read(pipe[READ], &tmp, sizeof(tmp)) != 0)
+        ;
+    // Notificar
+    fprintf(stdout, "Esperando que el servidor cierre comunicación\n");
+
+    //!5. Cliente cierra la lectura del pipe (Servidor->Cliente)
+    close(pipe[READ]);
+    // Notificar
+    fprintf(stdout, "Se cerró el pipe (Servidor->Cliente)\n");
+
+    //!6. Cliente elimina el pipe (Servidor->Cliente)
+    unlink(pipeSER_CTE);
+    // Notificar
+    fprintf(stdout, "Se eliminó el pipe (Servidor->Cliente)\n");
+
+    //!7. Cliente cierra la escritura del pipe (Cliente->Servidor)
+    close(pipe[WRITE]);
+    // Notificar
+    fprintf(stdout, "Se cerró el pipe (Cliente->Servidor)\n");
+
+    //!8. El proceso Cliente finaliza
+    // Esto se hace desde el main
+    // Notificar
+    fprintf(stdout, "Comunicación terminada\n");
+}
+
+data_t generateSignal(pid_t dest, int code, char *buffer)
+{
+    // Paquet creation
+    data_t packet;
+    packet.client = dest;
+    packet.type = SIGNAL;
+
+    // Signal construction
+    packet.data.signal.code = code;
+    strcpy(packet.data.signal.buffer, buffer);
+
+    return packet;
 }

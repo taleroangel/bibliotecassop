@@ -1,7 +1,7 @@
 # Bibliotecas SOP
 
 CC = gcc
-CFLAGS = -Wall -Wno-sizeof-pointer-memaccess
+CFLAGS = -g -Wall -Wno-sizeof-pointer-memaccess
 
 SRC_DIR = ./src
 BLD_DIR = ./build

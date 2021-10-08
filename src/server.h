@@ -72,18 +72,45 @@ static void manejarArgumentos(
  * Descripción del proceso en README.md
  * 
  * @param pipeCTE_SER Nombre del pipe (Cliente->Servidor)
- * @return fd del pipe
+ * @return fd del Pipe (Cliente-Servidor)
  */
 static int startCommunication(const char *pipeCTE_SER);
 
 /**
- * @brief Agregar un cliente a la lista
+ * @brief Conectar un cliente a la lista
  * 
  * @param clients Apuntador a la lista de clientes
  * @param package Copia del paquete recibido por el pipe
- * @return Exit error code or SUCCESS
+ * @return int Exit error code or SUCCESS_GENERIC
  */
 int connectClient(struct client_list *clients, data_t package);
+
+/**
+ * @brief Desconectar un cliente de la lista
+ * 
+ * @param clients Apuntador a la lista de clientes
+ * @param package Copia del paquete recibido por el pipe
+ * @return int Exit error code or SUCCESS_GENERIC
+ */
+int disconnectClient(struct client_list *clients, data_t package);
+
+/**
+ * @brief Interpretar una señal
+ * 
+ * @param package Paquete con la señal
+ * @return int (-1) si hay algún error
+ */
+int interpretSignal(struct client_list *clients, data_t package);
+
+/**
+ * @brief Generate a SIGNAL package as a reponse to the client
+ * 
+ * @param dest Destination Client PID
+ * @param code Signal code
+ * @param buffer Buffer [OPTIONAL], NULL if not required
+ * @return data_t new package
+ */
+data_t generateReponse(pid_t dest, int code, char *buffer);
 
 /* --------------------------- Manejo de clientes --------------------------- */
 
@@ -114,5 +141,14 @@ int storeClient(struct client_list *clients, client_t client);
  * @return non 0 if error
  */
 int removeClient(struct client_list *clients, pid_t clientToRemove);
+
+/**
+ * @brief Buscar un cliente dado su PID
+ * 
+ * @param client_list Lista con los clientes
+ * @param client PID del cliente
+ * @return int Retorna el FD del pipe (-1 si no existe)
+ */
+int searchClient(struct client_list *clients, pid_t client);
 
 #endif // __SERVER_H__

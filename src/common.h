@@ -37,10 +37,11 @@
 
 /* --------------------------- Lista de errores --------------------------- */
 // Errores genéricos
-#define ERROR_MEMORY -1   // Error de alojamiento de memoria
-#define SUCCESS 0         // Exitoso
-#define ERROR_FATAL 1     // Error irrecuperable
-#define ERROR_ARG_NOVAL 2 // Error en argumentos
+#define SUCCESS_GENERIC 0  // Exitoso
+#define FAILURE_GENERIC -1 // Falló
+#define ERROR_MEMORY -1    // Error de alojamiento de memoria
+#define ERROR_FATAL 1      // Error irrecuperable
+#define ERROR_ARG_NOVAL 2  // Error en argumentos
 
 // Apertura de arhivos
 #define ERROR_APERTURA_ARCHIVO 3
@@ -56,6 +57,6 @@
 #define ERROR_ESCRITURA 9
 
 // Otros errores
-#define ERROR_PID_NOT_EXIST 10
+#define ERROR_PID_NOT_EXIST -1
 
 #endif // __COMMON_H__

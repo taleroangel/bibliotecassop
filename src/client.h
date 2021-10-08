@@ -14,6 +14,7 @@
 #define __CLIENT_H__
 
 #include <stdbool.h>
+#include "data.h"
 
 /* ----------------------------- Definiciones ----------------------------- */
 
@@ -50,23 +51,6 @@ static bool manejarArgumentos(
     char *pipeNom,
     char *fileNom);
 
-/* --------------------------- Manejo de archivo --------------------------- */
-
-/**
- * @brief Intentar abrir un pipeNominal o Archivo en modo de sólo lectura
- * 
- * @param nombre nombre del archivo o pipe
- * @return int File Descriptor del archivo
- */
-int abrirArchivo(char *nombre);
-
-/**
- * @brief Cerrar un archivo o un pipe
- * 
- * @param fd File descriptor del archivo a cerrar
- */
-void cerrarArchivo(int fd);
-
 /* ----------------------- Protocolos de comunicación ----------------------- */
 
 /**
@@ -84,5 +68,17 @@ static void startCommunication(
     const char *pipeCTE_SER,
     char *pipeSER_CTE,
     int *pipe);
+
+static void stopCommunication(int *pipe, char *pipeSER_CTE);
+
+/**
+ * @brief Generate a SIGNAL package
+ * 
+ * @param src Source Client PID
+ * @param code Signal code
+ * @param buffer Buffer [OPTIONAL], NULL if not required
+ * @return data_t new package
+ */
+data_t generateSignal(pid_t src, int code, char *buffer);
 
 #endif // __CLIENT_H__
