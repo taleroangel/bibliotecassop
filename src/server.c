@@ -41,32 +41,25 @@ int main(int argc, char *argv[])
     // Iniciar la comunicación
     int pipeRead = startCommunication(pipeCTE_SER);
 
-    while (true)
-    {
-        sleep(15);
-        break;
-    }
-
     // Lista de los clientes;
     struct client_list clients;
-
     clients.nClients = 0;
     clients.clientArray = (client_t *)malloc(sizeof(client_t));
 
+    // Paquete temporal donde se guarda lo recibido por el pipe
     data_t package;
-
+    // Leer contenidos del pipe
     while (read(pipeRead, &package, sizeof(package)) != 0)
     {
         if (connectClient(&clients, package) == SUCCESS)
         {
-            sleep(10);
             break;
         }
     }
 
     // Eliminar lista de clientes
     free(clients.clientArray);
-
+    // Deshacer el pipe de Servidor
     unlink(pipeCTE_SER);
 }
 
@@ -171,9 +164,10 @@ int startCommunication(const char *pipeCTE_SER)
 
     // Notificación
     fprintf(stdout, "Notificación: Se ha creado el pipe (Cliente->Servidor)\n");
+    fprintf(stdout, "Notificación: El servidor está en estado de espera...\n");
 
     // Abrir el pipe para lectura
-    int pipe = open(pipeCTE_SER, O_RDONLY | O_NONBLOCK);
+    int pipe = open(pipeCTE_SER, O_RDONLY);
     if (pipe < 0)
     {
         perror("Error de comunicación"); // Manejar Error
@@ -196,7 +190,7 @@ int connectClient(struct client_list *clients, data_t package)
 
     //!5. Servidor abre el pipe (Servidor->Cliente) para ESCRITURA
     //Try to open the pipe
-    int pipefd = open(package.data.signal.buffer, O_WRONLY | O_NONBLOCK);
+    int pipefd = open(package.data.signal.buffer, O_WRONLY);
     if (pipefd < 0)
     {
         perror("Error en comunicación");
@@ -239,7 +233,7 @@ int connectClient(struct client_list *clients, data_t package)
 
         // Desalojar recursos
         removeClient(clients, nuevo.clientPID);
-        close(package.data.signal.buffer);
+        close(pipefd);
 
         return ERROR_PIPE_SER_CTE;
     }

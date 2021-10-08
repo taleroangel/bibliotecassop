@@ -16,8 +16,8 @@
   
 1. Cliente abre el pipe (Cliente->Servidor) para ESCRITURA
 2. Cliente crea un pipe (Servidor->Cliente)
-3. Cliente abre el pipe (Servidor->Cliente) para LECTURA
-4. Cliente envía a Servidor el nombre del pipe (Servidor->Cliente) mediante una señal [START_COM]
+3. Cliente envía a Servidor el nombre del pipe (Servidor->Cliente) mediante una señal [START_COM]
+4. Cliente abre el pipe (Servidor->Cliente) para LECTURA
 5. Servidor abre el pipe (Servidor->Cliente) para ESCRITURA
 6. Servidor guarda la información de Cliente con su respectivo pipe de comunicación
 7. Servidor envía una señal de confirmación a Cliente

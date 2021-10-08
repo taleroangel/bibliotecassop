@@ -34,17 +34,17 @@ int main(int argc, char *argv[])
 {
     // Manejar los argumentos
     char nombreArchivo[TAM_STRING], // Nombre archivo
-        pipeServidor[TAM_STRING],   // Nombre pipe (Cliente -> Servidor)
-        pipeCliente[TAM_STRING];    // Nombre pipe (Servidor -> Cliente)
+        pipeCTE_SER[TAM_STRING],    // Nombre pipe (Cliente -> Servidor)
+        pipeSER_CTE[TAM_STRING];    // Nombre pipe (Servidor -> Cliente)
 
     int pipe[2];       // FD's de los pipes
     bool archivoUsado; // Flag para saber si un archivo está siendo usado
 
-    archivoUsado = manejarArgumentos(argc, argv, pipeServidor, nombreArchivo);
+    archivoUsado = manejarArgumentos(argc, argv, pipeCTE_SER, nombreArchivo);
     int archivofd = -1;
 
     // Iniciar la comunicación con el servidor
-    startCommunication(pipeServidor, pipeCliente, pipe);
+    startCommunication(pipeCTE_SER, pipeSER_CTE, pipe);
 
     // Manejar el archivo
     if (archivoUsado)
@@ -57,6 +57,9 @@ int main(int argc, char *argv[])
     { // Si NO utilizó el archivo
         // Mostrar el menú
     }
+
+    // Cerrar el pipe abierto
+    unlink(pipeSER_CTE);
 
     // Cerrar archivos abiertos
     if (archivoUsado)
@@ -167,7 +170,7 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
 int abrirArchivo(char *nombre)
 {
     // Intentar abrir un pipe en modo de sólo lectura
-    int fd = open(nombre, O_RDONLY | O_NONBLOCK);
+    int fd = open(nombre, O_RDONLY);
     if (fd < 0)
     {
         perror("Error en lectura de archivos");
@@ -199,7 +202,7 @@ void startCommunication(
 
     //!1 Cliente abre el pipe (Cliente->Servidor) para ESCRITURA
 
-    pipe[WRITE] = open(pipeCTE_SER, O_WRONLY | O_NONBLOCK);
+    pipe[WRITE] = open(pipeCTE_SER, O_WRONLY);
     if (pipe[WRITE] < 0)
     {
         perror("Error de comunicación con el servidor"); // Manejar error
@@ -242,22 +245,7 @@ void startCommunication(
     //Notificación
     fprintf(stdout, "Notificación: El pipe (Servidor->Cliente) fue creado\n");
 
-    //!3 Cliente abre el pipe (Servidor->Cliente) para LECTURA
-    pipe[READ] = open(pipeSER_CTE, O_RDONLY | O_NONBLOCK);
-    if (pipe[READ] < 0)
-    {
-        perror("Error de conexión con el servidor"); // Manejar Error
-
-        // Cerrar recursos abiertos
-        close(pipe[WRITE]);
-        unlink(pipeSER_CTE);
-        exit(ERROR_PIPE_CTE_SER);
-    }
-
-    //Notificación
-    fprintf(stdout, "Notificación: El pipe (Servidor->Cliente) fue abierto\n");
-
-    //!4 Cliente envía a Servidor el nombre del pipe (Servidor->Cliente)
+    //!5 Cliente envía a Servidor el nombre del pipe (Servidor->Cliente)
     data_t com;                                  // Estructura a enviar por el pipe
     com.client = client_pid;                     // PID quien envía
     com.type = SIGNAL;                           // Tipo de dato
@@ -296,6 +284,21 @@ void startCommunication(
         }
 
     } while (aux < 0);
+
+    //!4 Cliente abre el pipe (Servidor->Cliente) para LECTURA
+    pipe[READ] = open(pipeSER_CTE, O_RDONLY);
+    if (pipe[READ] < 0)
+    {
+        perror("Error de conexión con el servidor"); // Manejar Error
+
+        // Cerrar recursos abiertos
+        close(pipe[WRITE]);
+        unlink(pipeSER_CTE);
+        exit(ERROR_PIPE_CTE_SER);
+    }
+
+    //Notificación
+    fprintf(stdout, "Notificación: El pipe (Servidor->Cliente) fue abierto\n");
 
     //!8. Cliente espera una señal de Servidor
 
