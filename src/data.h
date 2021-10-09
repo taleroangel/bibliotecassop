@@ -15,17 +15,13 @@
 
 #include <sys/types.h> // Para usar pid_t
 #include "common.h"    // Para usar byte
+#include "book.h"      // Para usar estructuras de libros
 
 // Tipo de informacion que se transmite (SEÑAL / LIBRO)
 enum TYPE_T
 {
     SIGNAL,
     BOOK
-};
-
-// Estructura de un libro
-struct BOOK_T
-{
 };
 
 // Estructura de una señal

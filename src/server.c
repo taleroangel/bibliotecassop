@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr,
                         "Hubo un problema en la lectura de un paquete\n");
                 fprintf(stderr, "SEÑAL: Código de error: %d\n", return_status);
+                perror("SO");
             }
             break;
 
@@ -73,6 +74,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr,
                         "Hubo un problema en la lectura de un paquete\n");
                 fprintf(stderr, "LIBRO: Código de error: %d\n", return_status);
+                perror("SO");
             }
             break;
 
@@ -203,7 +205,7 @@ int startCommunication(const char *pipeCTE_SER)
     fprintf(stdout, "Notificación: Se ha creado el pipe (Cliente->Servidor)\n");
     fprintf(stdout, "Notificación: El servidor está en estado de espera...\n");
 
-    // Abrir el pipe para lectura
+    // Abrir el pipe para lectura (Cliente->Servidor)
     int pipe = open(pipeCTE_SER, O_RDONLY);
     if (pipe < 0)
     {
@@ -219,6 +221,9 @@ int startCommunication(const char *pipeCTE_SER)
 
 int connectClient(struct client_list *clients, data_t package)
 {
+    // Notificación
+    fprintf(stdout, "\nUn nuevo cliente está iniciando una conexión\n");
+
     if (package.type != SIGNAL && package.data.signal.code != START_COM)
     {
         fprintf(stderr, "Unexpected instruction\n");
@@ -279,11 +284,17 @@ int connectClient(struct client_list *clients, data_t package)
     fprintf(stdout,
             "Notificación: Señal enviada\n");
 
+    fprintf(stdout,
+            "La comunicación fue exitosa\n");
+
     return SUCCESS_GENERIC;
 }
 
 int disconnectClient(struct client_list *clients, data_t package)
 {
+    // Notificación
+    fprintf(stdout, "\nUn cliente abandona la comunicación\n");
+
     if (package.type != SIGNAL && package.data.signal.code != STOP_COM)
     {
         fprintf(stderr, "Unexpected instruction\n");
@@ -308,6 +319,9 @@ int disconnectClient(struct client_list *clients, data_t package)
         return temp;
     }
 
+    // Notificación
+    fprintf(stdout,
+            "Comunicación cerrada exitosamente\n");
     return SUCCESS_GENERIC;
 }
 
@@ -317,6 +331,10 @@ int interpretSignal(struct client_list *clients, data_t package)
     {
     case START_COM:
         return connectClient(clients, package);
+        break;
+
+    case STOP_COM:
+        return disconnectClient(clients, package);
         break;
     }
 
@@ -332,7 +350,8 @@ data_t generateReponse(pid_t dest, int code, char *buffer)
 
     // Signal construction
     reponse.data.signal.code = code;
-    strcpy(reponse.data.signal.buffer, buffer);
+    if (buffer != NULL)
+        strcpy(reponse.data.signal.buffer, buffer);
 
     return reponse;
 }
@@ -405,7 +424,8 @@ int removeClient(struct client_list *clients, pid_t clientToRemove)
     }
 
     // Realloc the array
-    clients->nClients--;
+    if (clients->nClients > 1)
+        clients->nClients--;
 
     // Realloc memory for the new client
     client_t *aux = // Hacer el vector más grande y guardarlo en un nuevo apuntador
@@ -417,7 +437,7 @@ int removeClient(struct client_list *clients, pid_t clientToRemove)
     if (aux == NULL)
     {
         perror("Error");
-        fprintf(stderr, "No es posible eliminar un cliente...");
+        fprintf(stderr, "No es posible eliminar un cliente...\n");
         return ERROR_MEMORY;
     }
 

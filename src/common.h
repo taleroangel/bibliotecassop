@@ -20,9 +20,9 @@
 
 #define TAM_STRING 20 // Tamaño de los Strings
 
-#define PERMISOS_PIPE S_IRUSR | S_IWUSR // Permiso para Leer, Escribir, Ejecutar
-#define INTENTOS_ESCRITURA 5            // Intentos de escritura en caso de falla
-#define TIMEOUT_COMUNICACION 10         // Tiempo límite (s) para establecer comunicación
+#define PERMISOS_PIPE S_IRWXU   // Permiso para Leer, Escribir, Ejecutar
+#define INTENTOS_ESCRITURA 5    // Intentos de escritura en caso de falla
+#define TIMEOUT_COMUNICACION 10 // Tiempo límite (s) para establecer comunicación
 
 #define WRITE 0 // Definiciones para el vector fd
 #define READ 1  // Definiciones para el vector fd
@@ -57,6 +57,6 @@
 #define ERROR_ESCRITURA 9
 
 // Otros errores
-#define ERROR_PID_NOT_EXIST -1
+#define ERROR_PID_NOT_EXIST -3
 
 #endif // __COMMON_H__

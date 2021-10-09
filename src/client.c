@@ -29,6 +29,15 @@
 #include "client.h"
 #include "data.h"
 
+//temporal
+#include <signal.h>
+volatile bool runrun = true;
+void inttemporal(int dumm)
+{
+    runrun = false;
+}
+//endtemporal
+
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
 {
@@ -65,6 +74,12 @@ int main(int argc, char *argv[])
         // Mostrar el menú
     }
 
+    //temporal
+    signal(SIGINT, inttemporal);
+    while (runrun)
+        ;
+    //endtemporal
+
     // Cerrar archivos abiertos
     if (archivoUsado)
         if (close(archivofd) < 0)
@@ -74,7 +89,7 @@ int main(int argc, char *argv[])
     stopCommunication(pipe, pipeSER_CTE);
 
     // Notificar
-    fprintf(stdout, "Cliente finaliza correctamente\n");
+    fprintf(stdout, "\nCliente finaliza correctamente\n");
     return EXIT_SUCCESS;
 }
 
@@ -182,6 +197,9 @@ void startCommunication(
     char *pipeSER_CTE,
     int *pipe)
 {
+    // Notificar
+    fprintf(stdout, "\n(%d) Intentando establecer conexión\n", getpid());
+
     // int *pipe Arreglo con los fd de los pipes
     // pipe[WRITE] tiene el pipe de escritura (Cliente -> Servidor)
     // pipe[READ] tiene el pipe de lectura (Servidor -> Cliente)
@@ -350,8 +368,11 @@ void startCommunication(
 
 static void stopCommunication(int *pipe, char *pipeSER_CTE)
 {
+    // Notificar
+    fprintf(stdout, "\n(%d) Intentando detener conexión\n", getpid());
+
     //!1. Cliente manda una petición de terminación de comunicación al Servidor
-    data_t packet = generateSignal(123, STOP_COM, NULL), tmp;
+    data_t packet = generateSignal(getpid(), STOP_COM, NULL);
 
     // Notificar
     fprintf(stdout, "Intentando cerrar comunicación\n");
@@ -361,9 +382,11 @@ static void stopCommunication(int *pipe, char *pipeSER_CTE)
     // NO se termina el proceso, para que así elimine el pipe
     // Sólo se intenta escribir indeterminadamente
 
+    data_t tmp;
     //!4. Cliente espera a que se cierre el pipe
     while (read(pipe[READ], &tmp, sizeof(tmp)) != 0)
         ;
+
     // Notificar
     fprintf(stdout, "Esperando que el servidor cierre comunicación\n");
 
@@ -397,7 +420,7 @@ data_t generateSignal(pid_t dest, int code, char *buffer)
 
     // Signal construction
     packet.data.signal.code = code;
-    strcpy(packet.data.signal.buffer, buffer);
-
+    if (buffer != NULL)
+        strcpy(packet.data.signal.buffer, buffer);
     return packet;
 }
