@@ -554,7 +554,7 @@ int manejarLibros(
             }
         }
 
-        respuesta = generateReponse(package.client, ERROR, NULL);
+        respuesta = generateReponse(package.client, PET_ERROR, NULL);
 
         if (!encontrado)
         {
@@ -623,7 +623,7 @@ int manejarLibros(
         // 4. Avisar al cliente
         if (!libroActualizado)
         {
-            respuesta = generateReponse(package.client, ERROR, NULL);
+            respuesta = generateReponse(package.client, PET_ERROR, NULL);
             fprintf(stderr, "El libro no está disponible\n");
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
             {
@@ -667,7 +667,7 @@ int manejarLibros(
             }
         }
 
-        respuesta = generateReponse(package.client, ERROR, NULL);
+        respuesta = generateReponse(package.client, PET_ERROR, NULL);
 
         if (!encontrado)
         {
@@ -758,7 +758,7 @@ int manejarLibros(
         // 4. Avisar al cliente
         if (!libroActualizado)
         {
-            respuesta = generateReponse(package.client, ERROR, NULL);
+            respuesta = generateReponse(package.client, PET_ERROR, NULL);
             fprintf(stderr, "El libro no está disponible\n");
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
             {
@@ -802,7 +802,7 @@ int manejarLibros(
             }
         }
 
-        respuesta = generateReponse(package.client, ERROR, NULL);
+        respuesta = generateReponse(package.client, PET_ERROR, NULL);
 
         if (!encontrado)
         {
@@ -859,7 +859,7 @@ int manejarLibros(
         // 4. Avisar al cliente
         if (!libroActualizado)
         {
-            respuesta = generateReponse(package.client, ERROR, NULL);
+            respuesta = generateReponse(package.client, PET_ERROR, NULL);
             fprintf(stderr, "El libro no está disponible\n");
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
             {
@@ -918,7 +918,7 @@ int manejarLibros(
             }
         }
 
-        respuesta = generateReponse(package.client, ERROR, NULL);
+        respuesta = generateReponse(package.client, PET_ERROR, NULL);
         respuesta.type = ERR;
 
         fprintf(stderr, "El libro no fue encontrado...\n");

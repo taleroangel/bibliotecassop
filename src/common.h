@@ -30,7 +30,7 @@
 
 /* -------------------------------- Señales -------------------------------- */
 /* ------------------------- Señales de peticiones ------------------------- */
-#define ERROR -3     // Solicitud falló
+#define PET_ERROR -3 // Error de petición
 #define SOLICITUD 3  // Solicitud exitosa
 #define RENOVACION 4 // Renovación exitosa
 #define DEVOLUCION 5 // Devolución exitosa
