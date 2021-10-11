@@ -13,7 +13,7 @@ COMMON	= $(SRC_DIR)/common.h $(SRC_DIR)/data.h
 all: pre main
 
 pre:
-	@mkdir -p $(BIN_DIR) $(BLD_DIR) $(DOC_DIR)
+	@mkdir -p $(BIN_DIR) $(BLD_DIR)
 	@cp ./archivo_prueba/* $(BIN_DIR)*
 	@echo -e "Los ejecutables se encuentran en la carpeta '$(BIN_DIR)'"
 
@@ -40,5 +40,6 @@ clean:
 
 .PHONY: docs
 docs:
+	@mkdir -p $(DOC_DIR)
 	@doxygen ./doxyconf
 	@echo -e "Se creó documentacion doxygen"
