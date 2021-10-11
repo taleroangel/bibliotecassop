@@ -14,7 +14,7 @@ el flag -f se utiliza para específicar el archivo de texto donde se almacena la
 
 Las peticiones pueden realizarse mediante un archivo de texto con el flag -i, si no se utiliza este flag se mostrará un menú ([veáse Archivo de peticiones](#archivo-de-peticiones))
 
-Sólo se puedentener un único servidor pero múltiples clientes conectados al mismo
+Sólo se puede tener un único servidor pero múltiples clientes conectados al mismo
 
 ## Archivos de texto
 ### Base de datos
