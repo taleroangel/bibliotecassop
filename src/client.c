@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
     FILE *archivo = NULL;
 
     // Iniciar la comunicación con el servidor
-    startCommunication(pipeCTE_SER, pipeSER_CTE, pipe);
+    iniciarComunicacion(pipeCTE_SER, pipeSER_CTE, pipe);
 
     // Manejar el archivo
     if (archivoUsado)
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
             return ERROR_CIERRE_ARCHIVO;
 
     // Cerrar la comunicacion
-    stopCommunication(pipe, pipeSER_CTE);
+    detenerComunicacion(pipe, pipeSER_CTE);
 
     // Notificar
     fprintf(stdout, "\nCliente finaliza correctamente\n");
@@ -374,7 +374,7 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
 
 // Protocolos de comunicación
 
-void startCommunication(
+void iniciarComunicacion(
     const char *pipeCTE_SER,
     char *pipeSER_CTE,
     int *pipe)
@@ -548,13 +548,13 @@ void startCommunication(
     fprintf(stderr, "Respuesta inesperada: %d\n", expect.data.signal.code);
 }
 
-static void stopCommunication(int *pipe, char *pipeSER_CTE)
+static void detenerComunicacion(int *pipe, char *pipeSER_CTE)
 {
     // Notificar
     fprintf(stdout, "\n(%d) Intentando detener conexión\n", getpid());
 
     //!1. Cliente manda una petición de terminación de comunicación al Servidor
-    data_t packet = generateSignal(getpid(), STOP_COM, NULL);
+    data_t packet = generarSenal(getpid(), STOP_COM, NULL);
 
     // Notificar
     fprintf(stdout, "Intentando cerrar comunicación\n");
@@ -593,7 +593,7 @@ static void stopCommunication(int *pipe, char *pipeSER_CTE)
     fprintf(stdout, "Comunicación terminada\n");
 }
 
-data_t generateSignal(pid_t dest, int code, char *buffer)
+data_t generarSenal(pid_t dest, int code, char *buffer)
 {
     // Paquet creation
     data_t packet;

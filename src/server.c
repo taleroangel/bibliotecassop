@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     }
 
     // Iniciar la comunicación
-    int pipeRead = startCommunication(pipeCTE_SER);
+    int pipeRead = iniciarComunicacion(pipeCTE_SER);
 
     // Lista de los clientes;
     struct client_list clients;
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
         switch (package.type)
         {
         case SIGNAL: //! Cuando se recibe una SEÑAL
-            return_status = interpretSignal(&clients, package);
+            return_status = interpretarSenal(&clients, package);
             if (return_status != SUCCESS_GENERIC)
             {
                 fprintf(stderr,
@@ -245,7 +245,7 @@ void manejarArgumentos(int argc,
 
 /* ----------------------- Protocolos de comunicación ----------------------- */
 
-int startCommunication(const char *pipeCTE_SER)
+int iniciarComunicacion(const char *pipeCTE_SER)
 {
     // Crear el pipe (Cliente -> Servidor)
 
@@ -274,7 +274,7 @@ int startCommunication(const char *pipeCTE_SER)
     return pipe;
 }
 
-int connectClient(struct client_list *clients, data_t package)
+int conectarCliente(struct client_list *clients, data_t package)
 {
     // Notificación
     fprintf(stdout, "\nUn nuevo cliente está iniciando una conexión\n");
@@ -303,11 +303,11 @@ int connectClient(struct client_list *clients, data_t package)
     //!de comunicación
 
     // Leer los datos en el paquete y convertirlo en cliente
-    client_t nuevo = createClient(
+    client_t nuevo = crearCliente(
         pipefd, package.client, package.data.signal.buffer);
 
     // Guardar el nuevo cliente
-    if (storeClient(clients, nuevo) != SUCCESS_GENERIC)
+    if (guardarCliente(clients, nuevo) != SUCCESS_GENERIC)
         return ERROR_MEMORY;
 
     // Notificación
@@ -329,7 +329,7 @@ int connectClient(struct client_list *clients, data_t package)
         fprintf(stderr, "Pipe cerrado inesperadamente");
 
         // Desalojar recursos
-        removeClient(clients, nuevo.clientPID);
+        removerCliente(clients, nuevo.clientPID);
         close(pipefd);
 
         return ERROR_PIPE_SER_CTE;
@@ -345,7 +345,7 @@ int connectClient(struct client_list *clients, data_t package)
     return SUCCESS_GENERIC;
 }
 
-int disconnectClient(struct client_list *clients, data_t package)
+int retirarCliente(struct client_list *clients, data_t package)
 {
     // Notificación
     fprintf(stdout, "\nEl cliente (%d) quiere abandonar la comunicación\n",
@@ -358,7 +358,7 @@ int disconnectClient(struct client_list *clients, data_t package)
     }
 
     pid_t client = package.client;
-    int pipeSER_CTE = searchClient(clients, client);
+    int pipeSER_CTE = buscarCliente(clients, client);
 
     //! 2. Servidor cierra la escritura del pipe (Servidor->Cliente)
     if (close(pipeSER_CTE) < 0)
@@ -368,7 +368,7 @@ int disconnectClient(struct client_list *clients, data_t package)
     }
 
     //!3. Servidor actualiza la lista de clientes
-    int temp = removeClient(clients, client);
+    int temp = removerCliente(clients, client);
     if (temp != SUCCESS_GENERIC)
     {
         fprintf(stderr, "No se pudo borrar el cliente");
@@ -381,23 +381,23 @@ int disconnectClient(struct client_list *clients, data_t package)
     return SUCCESS_GENERIC;
 }
 
-int interpretSignal(struct client_list *clients, data_t package)
+int interpretarSenal(struct client_list *clients, data_t package)
 {
     switch (package.data.signal.code)
     {
     case START_COM:
-        return connectClient(clients, package);
+        return conectarCliente(clients, package);
         break;
 
     case STOP_COM:
-        return disconnectClient(clients, package);
+        return retirarCliente(clients, package);
         break;
     }
 
     return FAILURE_GENERIC;
 }
 
-data_t generateReponse(pid_t dest, int code, char *buffer)
+data_t generarRespuesta(pid_t dest, int code, char *buffer)
 {
     // Paquet creation
     data_t reponse;
@@ -414,7 +414,7 @@ data_t generateReponse(pid_t dest, int code, char *buffer)
 
 /* --------------------------- Manejo de clientes --------------------------- */
 
-client_t createClient(int pipefd, pid_t clientpid, char *pipenom)
+client_t crearCliente(int pipefd, pid_t clientpid, char *pipenom)
 {
     client_t clienteNuevo;
     clienteNuevo.clientPID = clientpid;
@@ -423,7 +423,7 @@ client_t createClient(int pipefd, pid_t clientpid, char *pipenom)
     return clienteNuevo;
 }
 
-int storeClient(struct client_list *clients, client_t client)
+int guardarCliente(struct client_list *clients, client_t client)
 {
     // Add 1 to the client counter
     int pos_newClient = clients->nClients++;
@@ -451,7 +451,7 @@ int storeClient(struct client_list *clients, client_t client)
     return SUCCESS_GENERIC;
 }
 
-int removeClient(struct client_list *clients, pid_t clientToRemove)
+int removerCliente(struct client_list *clients, pid_t clientToRemove)
 {
     // Search for the client to remove and move it to the last position
     if (clients->clientArray[clients->nClients - 1].clientPID != clientToRemove)
@@ -503,7 +503,7 @@ int removeClient(struct client_list *clients, pid_t clientToRemove)
     return SUCCESS_GENERIC;
 }
 
-int searchClient(struct client_list *clients, pid_t client)
+int buscarCliente(struct client_list *clients, pid_t client)
 {
     for (int i = 0; i < clients->nClients; i++)
         if (clients->clientArray[i].clientPID == client)
@@ -523,7 +523,7 @@ int manejarLibros(
     printf("\nSe recibió una solicitud del cliente (%d)\n", package.client);
 
     // Optener el pipe del cliente
-    int pipeCliente = searchClient(clients, package.client);
+    int pipeCliente = buscarCliente(clients, package.client);
 
     if (pipeCliente < 0)
     {
@@ -554,7 +554,7 @@ int manejarLibros(
             }
         }
 
-        respuesta = generateReponse(package.client, PET_ERROR, NULL);
+        respuesta = generarRespuesta(package.client, PET_ERROR, NULL);
 
         if (!encontrado)
         {
@@ -623,7 +623,7 @@ int manejarLibros(
         // 4. Avisar al cliente
         if (!libroActualizado)
         {
-            respuesta = generateReponse(package.client, PET_ERROR, NULL);
+            respuesta = generarRespuesta(package.client, PET_ERROR, NULL);
             fprintf(stderr, "El libro no está disponible\n");
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
             {
@@ -635,7 +635,7 @@ int manejarLibros(
         else
         {
             // Enviar también la fecha
-            respuesta = generateReponse(package.client, SOLICITUD, buffer);
+            respuesta = generarRespuesta(package.client, SOLICITUD, buffer);
 
             fprintf(stdout, "Solicitud exitosa (%d)\n", package.client);
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
@@ -667,7 +667,7 @@ int manejarLibros(
             }
         }
 
-        respuesta = generateReponse(package.client, PET_ERROR, NULL);
+        respuesta = generarRespuesta(package.client, PET_ERROR, NULL);
 
         if (!encontrado)
         {
@@ -758,7 +758,7 @@ int manejarLibros(
         // 4. Avisar al cliente
         if (!libroActualizado)
         {
-            respuesta = generateReponse(package.client, PET_ERROR, NULL);
+            respuesta = generarRespuesta(package.client, PET_ERROR, NULL);
             fprintf(stderr, "El libro no está disponible\n");
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
             {
@@ -771,7 +771,7 @@ int manejarLibros(
         {
             // Enviar también la fecha
             //? Cambiar el tipo de paquete
-            respuesta = generateReponse(package.client, RENOVACION, buffer);
+            respuesta = generarRespuesta(package.client, RENOVACION, buffer);
 
             fprintf(stdout, "Solicitud exitosa (%d)\n", package.client);
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
@@ -802,7 +802,7 @@ int manejarLibros(
             }
         }
 
-        respuesta = generateReponse(package.client, PET_ERROR, NULL);
+        respuesta = generarRespuesta(package.client, PET_ERROR, NULL);
 
         if (!encontrado)
         {
@@ -859,7 +859,7 @@ int manejarLibros(
         // 4. Avisar al cliente
         if (!libroActualizado)
         {
-            respuesta = generateReponse(package.client, PET_ERROR, NULL);
+            respuesta = generarRespuesta(package.client, PET_ERROR, NULL);
             fprintf(stderr, "El libro no está disponible\n");
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
             {
@@ -872,7 +872,7 @@ int manejarLibros(
         {
             // Enviar también la fecha
             //? Cambiar el tipo de paquete
-            respuesta = generateReponse(package.client, DEVOLUCION, buffer);
+            respuesta = generarRespuesta(package.client, DEVOLUCION, buffer);
 
             fprintf(stdout, "Solicitud exitosa (%d)\n", package.client);
             if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
@@ -918,7 +918,7 @@ int manejarLibros(
             }
         }
 
-        respuesta = generateReponse(package.client, PET_ERROR, NULL);
+        respuesta = generarRespuesta(package.client, PET_ERROR, NULL);
         respuesta.type = ERR;
 
         fprintf(stderr, "El libro no fue encontrado...\n");

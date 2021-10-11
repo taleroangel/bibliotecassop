@@ -85,7 +85,7 @@ static void manejarArgumentos(
  * @param pipeCTE_SER Nombre del pipe (Cliente->Servidor)
  * @return fd del Pipe (Cliente-Servidor)
  */
-static int startCommunication(const char *pipeCTE_SER);
+static int iniciarComunicacion(const char *pipeCTE_SER);
 
 /**
  * @brief Conectar un cliente a la lista
@@ -94,7 +94,7 @@ static int startCommunication(const char *pipeCTE_SER);
  * @param package Copia del paquete recibido por el pipe
  * @return int Exit error code or SUCCESS_GENERIC
  */
-int connectClient(struct client_list *clients, data_t package);
+int conectarCliente(struct client_list *clients, data_t package);
 
 /**
  * @brief Desconectar un cliente de la lista
@@ -103,7 +103,7 @@ int connectClient(struct client_list *clients, data_t package);
  * @param package Copia del paquete recibido por el pipe
  * @return int Exit error code or SUCCESS_GENERIC
  */
-int disconnectClient(struct client_list *clients, data_t package);
+int retirarCliente(struct client_list *clients, data_t package);
 
 /**
  * @brief Interpretar una señal
@@ -111,7 +111,7 @@ int disconnectClient(struct client_list *clients, data_t package);
  * @param package Paquete con la señal
  * @return int (-1) si hay algún error
  */
-int interpretSignal(struct client_list *clients, data_t package);
+int interpretarSenal(struct client_list *clients, data_t package);
 
 /**
  * @brief Generate a SIGNAL package as a reponse to the client
@@ -121,7 +121,7 @@ int interpretSignal(struct client_list *clients, data_t package);
  * @param buffer Buffer [OPTIONAL], NULL if not required
  * @return data_t new package
  */
-data_t generateReponse(pid_t dest, int code, char *buffer);
+data_t generarRespuesta(pid_t dest, int code, char *buffer);
 
 /* --------------------------- Manejo de clientes --------------------------- */
 
@@ -133,7 +133,7 @@ data_t generateReponse(pid_t dest, int code, char *buffer);
  * @param pipenom Nombre del pipe del cliente
  * @return client_t Estructura con el cliente
  */
-client_t createClient(int pipefd, pid_t clientpid, char *pipenom);
+client_t crearCliente(int pipefd, pid_t clientpid, char *pipenom);
 
 /**
  * @brief Guardar un cliente en el arreglo
@@ -142,7 +142,7 @@ client_t createClient(int pipefd, pid_t clientpid, char *pipenom);
  * @param client Cliente a guardar
  * @return non 0 if error
  */
-int storeClient(struct client_list *clients, client_t client);
+int guardarCliente(struct client_list *clients, client_t client);
 
 /**
  * @brief Remover un cliente dado su pid
@@ -151,7 +151,7 @@ int storeClient(struct client_list *clients, client_t client);
  * @param clientToRemove Cliente a guardar
  * @return non 0 if error
  */
-int removeClient(struct client_list *clients, pid_t clientToRemove);
+int removerCliente(struct client_list *clients, pid_t clientToRemove);
 
 /**
  * @brief Buscar un cliente dado su PID
@@ -160,7 +160,7 @@ int removeClient(struct client_list *clients, pid_t clientToRemove);
  * @param client PID del cliente
  * @return int Retorna el FD del pipe (-1 si no existe)
  */
-int searchClient(struct client_list *clients, pid_t client);
+int buscarCliente(struct client_list *clients, pid_t client);
 
 /**
  * @brief Manejar una solicitud de libro

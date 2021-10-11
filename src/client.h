@@ -78,12 +78,18 @@ static bool manejarArgumentos(
  * Use las macros WRITE y READ con pipe
  * EJ: para escribir en el pipe se utilizar pipe[WRITE]
  */
-static void startCommunication(
+static void iniciarComunicacion(
     const char *pipeCTE_SER,
     char *pipeSER_CTE,
     int *pipe);
 
-static void stopCommunication(int *pipe, char *pipeSER_CTE);
+/**
+ * @brief Detener la comunicación con el servidor
+ * 
+ * @param pipe Pipes de lectura/escritura
+ * @param pipeSER_CTE Nombre del pipe creado por el Cliente
+ */
+static void detenerComunicacion(int *pipe, char *pipeSER_CTE);
 
 /**
  * @brief Generate a SIGNAL package
@@ -93,7 +99,7 @@ static void stopCommunication(int *pipe, char *pipeSER_CTE);
  * @param buffer Buffer [OPTIONAL], NULL if not required
  * @return data_t new package
  */
-data_t generateSignal(pid_t src, int code, char *buffer);
+data_t generarSenal(pid_t src, int code, char *buffer);
 
 /* ----------------------- Funciones para los libros ----------------------- */
 
