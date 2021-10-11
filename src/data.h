@@ -17,22 +17,31 @@
 #include "common.h"    // Para usar byte
 #include "libro.h"     // Para usar estructuras de libros
 
-// Tipo de informacion que se transmite (SEÑAL / LIBRO)
+/**
+ * @enum TYPE_T
+ * Tipos de datos que pueden ser enviados con el paquete
+ */
 enum TYPE_T
 {
-    SIGNAL,
-    BOOK,
-    ERR
+    SIGNAL, // asociado struct SIGNAL_T
+    BOOK,   // asociado struct ejemplar
+    ERR     // NO TIENE TIPO DE DATO ASOCIADO (Sólo señalar errores)
 };
 
-// Estructura de una señal
+/**
+ * @struct SIGNAL_T
+ * Estructura de la SEÑAL
+ */
 struct SIGNAL_T
 {
     int code;                // Código de la señal
     char buffer[TAM_STRING]; // Buffer opcional
 };
 
-// Datos a transmitir ya sea un libro o una señal
+/**
+ * @union IN_DATA_T
+ * Datos a transmitir ya sea un libro o una señal
+ */
 union IN_DATA_T
 {
     struct SIGNAL_T signal;
@@ -47,6 +56,10 @@ el pid del proceso que lo envía/reciba (cuando aplique*), el tipo de
 datos que contiene (datos o señal), y contiene los datos transmitidos
 */
 
+/**
+ * @struct data_t
+ * Dato que será enviado a través de los pipes
+ */
 typedef struct
 {
     pid_t client;

@@ -594,7 +594,6 @@ int manejarLibros(
 
                 time_t t;
                 struct tm *tm;
-                char fechayhora[TAM_STRING];
 
                 t = time(NULL);
                 tm = localtime(&t);
@@ -604,8 +603,7 @@ int manejarLibros(
                 mktime(tm);
 
                 // Formatear la fecha
-                strftime(fechayhora, TAM_STRING, "%d-%m-%Y", tm);
-                sprintf(fecha, "%s\n", fechayhora);
+                strftime(fecha, TAM_STRING, "%d-%m-%Y", tm);
 
                 printf("IMPORTANTE: El libro está prestado hasta: %s\n", fecha);
 
@@ -844,15 +842,13 @@ int manejarLibros(
 
                 time_t t;
                 struct tm *tm;
-                char fechayhora[TAM_STRING];
 
                 t = time(NULL);
                 tm = localtime(&t);
-                strftime(fechayhora, TAM_STRING, "%d-%m-%Y", tm);
-                sprintf(fecha, "%s\n", fechayhora);
+                strftime(fecha, TAM_STRING, "%d-%m-%Y", tm);
 
                 //? INFORMACION
-                printf("IMPORTANTE: El libro fue devuelto en: %s", fecha);
+                printf("IMPORTANTE: El libro fue devuelto en: %s\n", fecha);
 
                 strcpy(ejemplar[i].libroEjem.fecha, fecha);
                 strcpy(buffer, fecha);

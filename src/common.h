@@ -18,7 +18,7 @@
 
 /* ----------------------------- Definiciones ----------------------------- */
 
-#define TAM_STRING 50   // Tamaño de los Strings
+#define TAM_STRING 100  // Tamaño de los Strings
 #define WEEK_SEC 604800 // Una semana en segundos
 
 #define PERMISOS_PIPE S_IRWXU   // Permiso para Leer, Escribir, Ejecutar
@@ -30,10 +30,10 @@
 
 /* -------------------------------- Señales -------------------------------- */
 /* ------------------------- Señales de peticiones ------------------------- */
-#define ERROR -3
-#define SOLICITUD 3 // Solicitud exitosa
-#define RENOVACION 4
-#define DEVOLUCION 5
+#define ERROR -3     // Solicitud falló
+#define SOLICITUD 3  // Solicitud exitosa
+#define RENOVACION 4 // Renovación exitosa
+#define DEVOLUCION 5 // Devolución exitosa
 
 /* ---------------- Señales de confirmación de comunicación ---------------- */
 

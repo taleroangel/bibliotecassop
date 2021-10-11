@@ -18,7 +18,7 @@
 
 /* ----------------------------- Definiciones ----------------------------- */
 
-#define PIPE_NOM_CTE "pipeCliente_"
+#define PIPE_NOM_CTE "pipeCliente_" // Nombre con el cual crear los pipes de cliente
 
 /* ------------------------ Prototipos de funciones ------------------------ */
 /*
@@ -123,6 +123,15 @@ int renovarLibro(
     int ISBN,
     int ejemplar);
 
+/**
+ * @brief Pedirle al servidor la información de un libro en específico
+ * 
+ * @param pipes Pipes de comunicación
+ * @param nombre Nombre del libro
+ * @param ISBN ISBN del libro
+ * @return struct ejemplar Estructura que contiene al libro, en caso de error
+ * la petición del libro es BUSCAR, cualquier otro tipo de petición es éxito
+ */
 struct ejemplar buscarLibro(int *pipes, const char *nombre, int ISBN);
 
 #endif // __CLIENT_H__

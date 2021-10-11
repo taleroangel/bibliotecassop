@@ -25,14 +25,16 @@
 
 //-----Variables globales-----//
 
-#define MAX_NOMLIBRO 100
 #define MAX_CANT_LIBROS 100
 #define MAX_CANT_LINEAS 1000
-#define NOMBRE_ARCHIVO "BD.txt"
 
 //-----Estructuras de datos-----//
 
-// Tipo de petición al Servidor
+/**
+ * @enum PETICION
+ * Describe los diferentes tipos de peticiones para libros que puede enviar
+ * el Cliente al Servidor 
+ */
 enum PETICION
 {
     SOLICITAR,
@@ -41,21 +43,30 @@ enum PETICION
     BUSCAR
 };
 
+/**
+ * @struct Libro
+ * Describe la información adicional de cada uno de los ejemplares que componen
+ * un libro
+ */
 struct libro
 {
-    int numero;
-    char estado;
-    char fecha[TAM_STRING];
+    int numero;             // Número de ejemplar
+    char estado;            // Estado (D o P)
+    char fecha[TAM_STRING]; // Fecha de préstamo (dd-mm-YY)
 };
 
+/**
+ * @struct ejemplar
+ * Información de cada uno de los libros
+ */
 struct ejemplar
 {
     enum PETICION petition; // Tipo de petición que se solicita
 
     int isbn;
-    int num_ejemplar;
-    char nombre[MAX_NOMLIBRO];
-    struct libro libroEjem;
+    int num_ejemplar; // Cantidad de ejemplares
+    char nombre[TAM_STRING];
+    struct libro libroEjem; // Información adicional de ejemplares
 
 } ejemplar[MAX_CANT_LIBROS];
 
