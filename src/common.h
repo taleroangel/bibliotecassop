@@ -1,6 +1,6 @@
 /**
  * @file common.h
- * @author  Ángel David Talero
+ * @authors  Ángel David Talero
  *          Juan Esteban Urquijo
  *          Humberto Rueda Cataño
  * @brief Macros y Typedefs compartidos entre Cliente y Servidor

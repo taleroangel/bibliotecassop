@@ -1,6 +1,6 @@
 /**
  * @file client.c
- * @author  Ángel David Talero
+ * @authors  Ángel David Talero
  *          Juan Esteban Urquijo
  *          Humberto Rueda Cataño
  * @brief Proceso solicitante
@@ -28,7 +28,6 @@
 #include "common.h"
 #include "client.h"
 #include "data.h"
-#include "peticion.h"
 
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])

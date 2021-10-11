@@ -1,6 +1,6 @@
 /**
  * @file client.h
- * @author  Ángel David Talero
+ * @authors  Ángel David Talero
  *          Juan Esteban Urquijo
  *          Humberto Rueda Cataño
  * @brief Proceso solicitante
@@ -19,6 +19,20 @@
 /* ----------------------------- Definiciones ----------------------------- */
 
 #define PIPE_NOM_CTE "pipeCliente_" // Nombre con el cual crear los pipes de cliente
+
+/* ----------------------------- Estructuras ----------------------------- */
+
+/**
+ * @struct peticion_t
+ * @brief Estructura en la cual se almacenan las diferentes peticiones que se leen
+ * por archivo en el proceso solicitante (Cliente)
+ */
+struct peticion_t
+{
+    char peticion;           /**< Tipo de peticion a realizar*/
+    char nombre[TAM_STRING]; /**< Nombre del libro*/
+    int isbn;                /**< ISBN del libro */
+};
 
 /* ------------------------ Prototipos de funciones ------------------------ */
 /*

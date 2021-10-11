@@ -1,9 +1,9 @@
 /**
- * @file book.h
- * @author  Ángel David Talero
+ * @file libro.h
+ * @authors  Ángel David Talero
  *          Juan Esteban Urquijo
  *          Humberto Rueda Cataño
- * @brief Estrucura de libros
+ * @brief Estrucuras que representan los libros
  * @copyright 2021
  * Pontificia Universidad Javeriana
  * Facultad de Ingeniería
@@ -32,7 +32,7 @@
 
 /**
  * @enum PETICION
- * Describe los diferentes tipos de peticiones para libros que puede enviar
+ * @brief Describe los diferentes tipos de peticiones para libros que puede enviar
  * el Cliente al Servidor 
  */
 enum PETICION
@@ -44,29 +44,29 @@ enum PETICION
 };
 
 /**
- * @struct Libro
- * Describe la información adicional de cada uno de los ejemplares que componen
+ * @struct libro
+ * @brief Describe la información adicional de cada uno de los ejemplares que componen
  * un libro
  */
 struct libro
 {
-    int numero;             // Número de ejemplar
-    char estado;            // Estado (D o P)
-    char fecha[TAM_STRING]; // Fecha de préstamo (dd-mm-YY)
+    int numero;             /**< Número de ejemplar*/
+    char estado;            /**< Estado (D o P)*/
+    char fecha[TAM_STRING]; /**< Fecha de préstamo (dd-mm-YY)*/
 };
 
 /**
  * @struct ejemplar
- * Información de cada uno de los libros
+ * @brief Información de cada uno de los libros
  */
 struct ejemplar
 {
-    enum PETICION petition; // Tipo de petición que se solicita
+    enum PETICION petition; /**< Tipo de petición que se solicita*/
 
-    int isbn;
-    int num_ejemplar; // Cantidad de ejemplares
-    char nombre[TAM_STRING];
-    struct libro libroEjem; // Información adicional de ejemplares
+    int isbn;                /**< ISBN del libro*/
+    int num_ejemplar;        /**< Cantidad de ejemplares*/
+    char nombre[TAM_STRING]; /**< Nombre del libro*/
+    struct libro libroEjem;  /**< Información adicional de ejemplares*/
 
 } ejemplar[MAX_CANT_LIBROS];
 

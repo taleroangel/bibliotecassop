@@ -1,6 +1,6 @@
 /**
  * @file server.h
- * @author  Ángel David Talero
+ * @authors  Ángel David Talero
  *          Juan Esteban Urquijo
  *          Humberto Rueda Cataño
  * @brief Proceso receptor de peticiones
@@ -20,17 +20,28 @@
 /* ----------------------------- Definiciones ----------------------------- */
 
 /* ------------------------------ Estructuras ------------------------------ */
+
+/**
+ * @struct client_t
+ * @brief Estructura con la infroamción de un cliente
+ * 
+ */
 typedef struct
 {
-    int pipe;                 // Pipe FD
-    pid_t clientPID;          // Client PID
-    char pipeNom[TAM_STRING]; // Pipe name
-} client_t;                   // Client structure
+    int pipe;                 /**< Pipe FD*/
+    pid_t clientPID;          /**< Client PID*/
+    char pipeNom[TAM_STRING]; /**< Pipe name*/
+} client_t;
 
-struct client_list // Client list structure
+/**
+ * @struct client_list
+ * @brief Arreglo dinámico de clientes conectados
+ * 
+ */
+struct client_list
 {
-    int nClients;
-    client_t *clientArray;
+    int nClients;          /**< Número de clientes en el arreglo*/
+    client_t *clientArray; /**< Arreglo de clientes conectados*/
 };
 
 /* ------------------------ Prototipos de funciones ------------------------ */

@@ -1,20 +1,21 @@
 # Bibliotecas SOP
 
 CC = @gcc
-CFLAGS = -O3 -Wall -Wno-sizeof-pointer-memaccess -Wno-unused-but-set-variable -Wno-unused-variable
+CFLAGS = -O3 -Wall -Wno-sizeof-pointer-memaccess -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-result
 
 SRC_DIR = ./src
 BLD_DIR = ./build
 BIN_DIR = ./bin
+DOC_DIR = ./docs
 
 COMMON	= $(SRC_DIR)/common.h $(SRC_DIR)/data.h
 
 all: pre main
 
 pre:
-	@mkdir bin && mkdir build
-	@cp ./archivo_prueba/* ./bin*
-	@echo -e "Los ejecutables se encuentran en la carpeta 'bin'"
+	@mkdir -p $(BIN_DIR) $(BLD_DIR) $(DOC_DIR)
+	@cp ./archivo_prueba/* $(BIN_DIR)*
+	@echo -e "Los ejecutables se encuentran en la carpeta '$(BIN_DIR)'"
 
 main: $(BIN_DIR)/server $(BIN_DIR)/client
 
@@ -34,5 +35,10 @@ $(BLD_DIR)/client.o: $(SRC_DIR)/client.c $(SRC_DIR)/client.h $(COMMON)
 
 .PHONY: clean
 clean:
-	@rm -rf $(BLD_DIR)/ $(BIN_DIR)/
+	@rm -rf $(BLD_DIR)/ $(BIN_DIR)/ $(DOC_DIR)
 	@echo -e "Se eliminaron los ejecutables"
+
+.PHONY: docs
+docs:
+	@doxygen ./doxyconf
+	@echo -e "Se creó documentacion doxygen"

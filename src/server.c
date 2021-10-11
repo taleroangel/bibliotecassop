@@ -1,6 +1,6 @@
 /**
  * @file server.c
- * @author  Ángel David Talero
+ * @authors  Ángel David Talero
  *          Juan Esteban Urquijo
  *          Humberto Rueda Cataño
  * @brief Proceso receptor de peticiones
