@@ -151,4 +151,17 @@ int removeClient(struct client_list *clients, pid_t clientToRemove);
  */
 int searchClient(struct client_list *clients, pid_t client);
 
+/**
+ * @brief Manejar una solicitud de libro
+ * 
+ * @param clients Lista de los clientes
+ * @param package Paquete
+ * @param ejemplar Arreglo con los libros de la BD
+ * @return int Error o 0 si exitoso
+ */
+int manejarLibros(
+    struct client_list *clients,
+    data_t package,
+    struct ejemplar ejemplar[]);
+
 #endif // __SERVER_H__

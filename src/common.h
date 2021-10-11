@@ -18,7 +18,8 @@
 
 /* ----------------------------- Definiciones ----------------------------- */
 
-#define TAM_STRING 20 // Tamaño de los Strings
+#define TAM_STRING 50   // Tamaño de los Strings
+#define WEEK_SEC 604800 // Una semana en segundos
 
 #define PERMISOS_PIPE S_IRWXU   // Permiso para Leer, Escribir, Ejecutar
 #define INTENTOS_ESCRITURA 5    // Intentos de escritura en caso de falla
@@ -28,6 +29,12 @@
 #define READ 1  // Definiciones para el vector fd
 
 /* -------------------------------- Señales -------------------------------- */
+/* ------------------------- Señales de peticiones ------------------------- */
+#define ERROR -3
+#define SOLICITUD 3 // Solicitud exitosa
+#define RENOVACION 4
+#define DEVOLUCION 5
+
 /* ---------------- Señales de confirmación de comunicación ---------------- */
 
 #define START_COM 1   // Señal para empezar comunicación
@@ -39,7 +46,7 @@
 // Errores genéricos
 #define SUCCESS_GENERIC 0  // Exitoso
 #define FAILURE_GENERIC -1 // Falló
-#define ERROR_MEMORY -1    // Error de alojamiento de memoria
+#define ERROR_MEMORY -6    // Error de alojamiento de memoria
 #define ERROR_FATAL 1      // Error irrecuperable
 #define ERROR_ARG_NOVAL 2  // Error en argumentos
 
@@ -58,5 +65,6 @@
 
 // Otros errores
 #define ERROR_PID_NOT_EXIST -3
+#define ERROR_SOLICITUD 10
 
 #endif // __COMMON_H__

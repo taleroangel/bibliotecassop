@@ -81,4 +81,48 @@ static void stopCommunication(int *pipe, char *pipeSER_CTE);
  */
 data_t generateSignal(pid_t src, int code, char *buffer);
 
+/* ----------------------- Funciones para los libros ----------------------- */
+
+/**
+ * @brief Función que se encarga de pedir prestado un libro al servidor
+ * 
+ * @param pipes Arreglo con los pipes
+ * @param nombreLibro Nombre del libro
+ * @param ISBN Su ISBN
+ * @return int Código de error o SUCCESS_GENERIC (0) si éxito
+ */
+int prestarLibro(int *pipes, const char *nombreLibro, int ISBN);
+
+/**
+ * @brief Función que se encarga de pedir devolver un libro al servidor
+ * 
+ * @param pipes Arreglo con los pipes
+ * @param nombreLibro Nombre del libro
+ * @param ISBN Su ISBN
+ * @param ejemplar Número de ejemplar
+ * @return int Código de error o SUCCESS_GENERIC (0) si éxito
+ */
+int devolverLibro(
+    int *pipes,
+    const char *nombreLibro,
+    int ISBN,
+    int ejemplar);
+
+/**
+ * @brief Función que se encarga de pedir renovar un libro al servidor
+ * 
+ * @param pipes Arreglo con los pipes
+ * @param nombreLibro Nombre del libro
+ * @param ISBN Su ISBN
+ * @param ejemplar Número de ejemplar
+ * @return int Código de error o SUCCESS_GENERIC (0) si éxito
+ */
+int renovarLibro(
+    int *pipes,
+    const char *nombreLibro,
+    int ISBN,
+    int ejemplar);
+
+struct ejemplar buscarLibro(int *pipes, const char *nombre, int ISBN);
+
 #endif // __CLIENT_H__

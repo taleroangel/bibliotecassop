@@ -28,15 +28,7 @@
 #include "common.h"
 #include "client.h"
 #include "data.h"
-
-//temporal
-#include <signal.h>
-volatile bool runrun = true;
-void inttemporal(int dumm)
-{
-    runrun = false;
-}
-//endtemporal
+#include "peticion.h"
 
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
@@ -46,11 +38,19 @@ int main(int argc, char *argv[])
         pipeCTE_SER[TAM_STRING],    // Nombre pipe (Cliente -> Servidor)
         pipeSER_CTE[TAM_STRING];    // Nombre pipe (Servidor -> Cliente)
 
-    int pipe[2];       // FD's de los pipes
-    bool archivoUsado; // Flag para saber si un archivo está siendo usado
+    int pipe[2]; // FD's de los pipes
 
+    char nombreLibro[TAM_STRING];
+    memset(nombreLibro, 0, sizeof(nombreLibro));
+
+    char ISBNstr[TAM_STRING];
+    memset(ISBNstr, 0, sizeof(ISBNstr));
+
+    int n_ejemplar = 0;
+
+    bool archivoUsado; // Flag para saber si un archivo está siendo usado
     archivoUsado = manejarArgumentos(argc, argv, pipeCTE_SER, nombreArchivo);
-    int archivofd = -1;
+    FILE *archivo = NULL;
 
     // Iniciar la comunicación con el servidor
     startCommunication(pipeCTE_SER, pipeSER_CTE, pipe);
@@ -59,30 +59,213 @@ int main(int argc, char *argv[])
     if (archivoUsado)
     { // Si utilizó el archivo
         // Abrir el archivo
-        archivofd = open(nombreArchivo, O_RDWR);
-        if (archivofd < 0)
+        archivo = fopen(nombreArchivo, "r");
+        if (archivo == NULL)
         {
             perror("Archivo");
             return ERROR_APERTURA_ARCHIVO;
         }
 
-        //TODO hacer quien sabe que con ese archivo
+        //1. Leer el archivo
+        struct peticion_t peticiones[MAX_CANT_LIBROS];
+        struct ejemplar libro;
+        int peticionesLeidas = 0;
+        for (int i = 0; i < MAX_CANT_LIBROS; i++)
+        {
+            fscanf(archivo, "%c, %[^,],%d\n",
+                   &peticiones[i].peticion,
+                   peticiones[i].nombre,
+                   &peticiones[i].isbn);
+
+            peticionesLeidas++;
+            if (feof(archivo))
+                break;
+        }
+
+        // Mandar al servidor todas las peticiones
+        for (int i = 0; i < peticionesLeidas; i++)
+        {
+            switch (peticiones[i].peticion)
+            {
+            case 'P': // Prestar
+                printf("\nIniciando préstamo del libro\n");
+                if (
+                    prestarLibro(
+                        pipe,
+                        peticiones[i].nombre,
+                        peticiones[i].isbn) != SUCCESS_GENERIC)
+                    printf("Operación fallida\n");
+                else
+                    printf("Operación exitosa\n");
+                break;
+
+            case 'R': // Renovar
+                printf("\nIniciando renovación del libro\n");
+                // Hay que intentar renovar por cada libro
+                libro = buscarLibro(pipe,
+                                    peticiones[i].nombre,
+                                    peticiones[i].isbn);
+
+                if (libro.petition == BUSCAR) // Si el libro no existe
+                {
+                    fprintf(stderr, "El libro no existe!\n");
+                    continue; // Saltarse la peticion
+                }
+
+                bool renovado = false;
+                for (int j = 0; j < libro.num_ejemplar; j++)
+                {
+                    printf("Intentando renovar ejemplar #%d", j);
+                    // Por cada ejemplar hacer el intento de renovar
+                    if (renovarLibro(pipe, libro.nombre, libro.isbn, j) ==
+                        SUCCESS_GENERIC)
+                    {
+                        renovado = true; // Al menos un libro fue exitoso
+                        break;
+                    }
+                }
+
+                if (renovado)
+                    printf("La renovación del libro fue exitosa...\n");
+
+                else
+                    fprintf(stderr, "La renovación del libro falló\n");
+
+                break;
+
+            case 'D': // Devolver un libro
+                printf("\nIniciando devolución del libro\n");
+                // Hay que intentar renovar por cada libro
+                libro = buscarLibro(pipe,
+                                    peticiones[i].nombre,
+                                    peticiones[i].isbn);
+
+                if (libro.petition == BUSCAR) // Si el libro no existe
+                {
+                    fprintf(stderr, "El libro no existe!\n");
+                    continue; // Saltarse la peticion
+                }
+
+                bool devuelto = false;
+                for (int j = 0; j < libro.num_ejemplar; j++)
+                {
+                    printf("Intentando devolver ejemplar #%d", j);
+                    // Por cada ejemplar hacer el intento de renovar
+                    if (devolverLibro(pipe, libro.nombre, libro.isbn, j) ==
+                        SUCCESS_GENERIC)
+                    {
+                        devuelto = true; // Al menos un libro fue exitoso
+                        break;
+                    }
+                }
+
+                if (devuelto)
+                    printf("La devolución del libro fue exitosa...\n");
+
+                else
+                    fprintf(stderr, "La devolución del libro falló\n");
+
+                break;
+
+            default:
+                break;
+            }
+        }
     }
 
     else
-    { // Si NO utilizó el archivo
-        // Mostrar el menú
-    }
+    { // Si NO utilizó el archivo // Mostrar menú
 
-    //temporal
-    signal(SIGINT, inttemporal);
-    while (runrun)
-        ;
-    //endtemporal
+        int sel;
+        do
+        {
+            printf("\n @ Menú Principal @\n");
+            // Mostrar optciones
+            printf("1. Pedir un libro prestado\n");
+            printf("2. Renovar un libro\n");
+            printf("3. Devolver un libro\n");
+            printf("0. Salir\n");
+            printf("Seleccione una opción: ");
+
+            scanf("%d", &sel);
+            (void)getchar();
+
+            switch (sel)
+            {
+            case 0:
+                // Salir
+                printf("Saliendo...\n");
+                break;
+
+            case 1:
+                // Pedir prestado un libro
+                printf("Digite el nombre del libro: ");
+                fgets(nombreLibro, sizeof(nombreLibro), stdin);
+                nombreLibro[strcspn(nombreLibro, "\r\n")] = 0;
+
+                printf("Digite el ISBN del libro: ");
+                fgets(ISBNstr, sizeof(ISBNstr), stdin);
+
+                if (prestarLibro(pipe, nombreLibro, atoi(ISBNstr)) != SUCCESS_GENERIC)
+                    printf("Operación fallida\n");
+                else
+                    printf("Operación exitosa\n");
+
+                break;
+
+            case 2:
+                // Renovar un libro
+                printf("Digite el nombre del libro: ");
+                fgets(nombreLibro, sizeof(nombreLibro), stdin);
+                nombreLibro[strcspn(nombreLibro, "\r\n")] = 0;
+
+                printf("Digite el ISBN del libro: ");
+                fgets(ISBNstr, sizeof(ISBNstr), stdin);
+
+                printf("Digite el número de ejemplar: ");
+                scanf("%d", &n_ejemplar);
+                (void)getchar();
+
+                if (renovarLibro(pipe, nombreLibro, atoi(ISBNstr), n_ejemplar) !=
+                    SUCCESS_GENERIC)
+                    printf("Operación fallida\n");
+                else
+                    printf("Operación exitosa\n");
+
+                break;
+
+            case 3:
+                // Devolver un libro
+                printf("Digite el nombre del libro: ");
+                fgets(nombreLibro, sizeof(nombreLibro), stdin);
+                nombreLibro[strcspn(nombreLibro, "\r\n")] = 0;
+
+                printf("Digite el ISBN del libro: ");
+                fgets(ISBNstr, sizeof(ISBNstr), stdin);
+
+                printf("Digite el número de ejemplar: ");
+                scanf("%d", &n_ejemplar);
+                (void)getchar();
+
+                if (devolverLibro(pipe, nombreLibro, atoi(ISBNstr), n_ejemplar) !=
+                    SUCCESS_GENERIC)
+                    printf("Operación fallida\n");
+                else
+                    printf("Operación exitosa\n");
+
+                break;
+
+            default:
+                printf("Opción incorrecta...\n");
+                break;
+            }
+
+        } while (sel != 0);
+    }
 
     // Cerrar archivos abiertos
     if (archivoUsado)
-        if (close(archivofd) < 0)
+        if (fclose(archivo) < 0)
             return ERROR_CIERRE_ARCHIVO;
 
     // Cerrar la comunicacion
@@ -423,4 +606,194 @@ data_t generateSignal(pid_t dest, int code, char *buffer)
     if (buffer != NULL)
         strcpy(packet.data.signal.buffer, buffer);
     return packet;
+}
+
+// Manipular libros
+
+int prestarLibro(int *pipes, const char *nombreLibro, int ISBN)
+{
+    // Notificación
+    printf("\nSe está enviando una solicitud al servidor\n");
+
+    // Libro a enviar al servidor
+    struct ejemplar libro;
+    libro.isbn = ISBN;
+    strcpy(libro.nombre, nombreLibro);
+    libro.petition = SOLICITAR;
+
+    // Crear el paquete
+    data_t paquete;
+    paquete.type = BOOK;
+    paquete.client = getpid();
+    paquete.data.libro = libro;
+
+    // Enviar al sevidor
+    if (write(pipes[WRITE], &paquete, sizeof(paquete)) < 0)
+    {
+        perror("Error");
+        return ERROR_ESCRITURA;
+    }
+
+    // ... Esperar una respuesta positiva
+    data_t respuesta;
+    if (read(pipes[READ], &respuesta, sizeof(respuesta)) < 0)
+    {
+        perror("Error");
+        return ERROR_LECTURA;
+    }
+
+    if (respuesta.data.signal.code != SOLICITUD)
+    {
+        fprintf(stderr, "La solicitud falló, el libro no existe o no tiene ejemplares disponibles\n");
+        return ERROR_SOLICITUD;
+    }
+
+    printf("La solicitud fue procesada adecuadamente\n");
+    printf("El libro fue prestado hasta: %s\n", respuesta.data.signal.buffer);
+
+    return SUCCESS_GENERIC;
+}
+
+int devolverLibro(int *pipes, const char *nombreLibro, int ISBN, int ejemplar)
+{
+    // Notificación
+    printf("\nSe está enviando una solicitud al servidor\n");
+
+    // Libro a enviar al servidor
+    struct ejemplar libro;
+    libro.isbn = ISBN;
+    strcpy(libro.nombre, nombreLibro);
+    libro.petition = DEVOLVER;         //! DEVOLVER
+    libro.libroEjem.numero = ejemplar; // Numero del ejemplar
+
+    // Crear el paquete
+    data_t paquete;
+    paquete.type = BOOK;
+    paquete.client = getpid();
+    paquete.data.libro = libro;
+
+    // Enviar al sevidor
+    if (write(pipes[WRITE], &paquete, sizeof(paquete)) < 0)
+    {
+        perror("Error");
+        return ERROR_ESCRITURA;
+    }
+
+    // ... Esperar una respuesta positiva
+    data_t respuesta;
+    if (read(pipes[READ], &respuesta, sizeof(respuesta)) < 0)
+    {
+        perror("Error");
+        return ERROR_LECTURA;
+    }
+
+    if (respuesta.data.signal.code != DEVOLUCION)
+    {
+        fprintf(stderr, "La solicitud falló, el libro no existe o no tiene ejemplares en préstamo\n");
+        return ERROR_SOLICITUD;
+    }
+
+    printf("La solicitud fue procesada adecuadamente\n");
+    printf("El libro: '%s' fue devuelto correctamente en: %s\n",
+           libro.nombre,
+           respuesta.data.signal.buffer);
+
+    return SUCCESS_GENERIC;
+}
+
+int renovarLibro(int *pipes,
+                 const char *nombreLibro,
+                 int ISBN,
+                 int ejemplar)
+{
+    // Notificación
+    printf("\nSe está enviando una solicitud al servidor\n");
+
+    // Libro a enviar al servidor
+    struct ejemplar libro;
+    libro.isbn = ISBN;
+    strcpy(libro.nombre, nombreLibro);
+    libro.petition = RENOVAR;          //! DEVOLVER
+    libro.libroEjem.numero = ejemplar; // Numero del ejemplar
+
+    // Crear el paquete
+    data_t paquete;
+    paquete.type = BOOK;
+    paquete.client = getpid();
+    paquete.data.libro = libro;
+
+    // Enviar al sevidor
+    if (write(pipes[WRITE], &paquete, sizeof(paquete)) < 0)
+    {
+        perror("Error");
+        return ERROR_ESCRITURA;
+    }
+
+    // ... Esperar una respuesta positiva
+    data_t respuesta;
+    if (read(pipes[READ], &respuesta, sizeof(respuesta)) < 0)
+    {
+        perror("Error");
+        return ERROR_LECTURA;
+    }
+
+    if (respuesta.data.signal.code != RENOVACION)
+    {
+        fprintf(stderr, "La solicitud falló, el libro no existe o no tiene ejemplares en préstamo\n");
+        return ERROR_SOLICITUD;
+    }
+
+    printf("La solicitud fue procesada adecuadamente\n");
+    printf("El libro '%s' fue renovado\n", libro.nombre);
+    printf("La nueva fecha de entrega es: %s\n",
+           respuesta.data.signal.buffer);
+
+    return SUCCESS_GENERIC;
+}
+
+struct ejemplar buscarLibro(int *pipes, const char *nombre, int ISBN)
+{
+    // Notificación
+    printf("\nSe está enviando una solicitud al servidor\n");
+
+    // Libro a enviar al servidor
+    struct ejemplar libro1;
+    libro1.isbn = ISBN;
+    strcpy(libro1.nombre, nombre);
+    libro1.petition = BUSCAR;
+
+    // Crear el paquete
+    data_t paquete;
+    paquete.type = BOOK;
+    paquete.client = getpid();
+    paquete.data.libro = libro1;
+
+    // Enviar al sevidor
+    if (write(pipes[WRITE], &paquete, sizeof(paquete)) < 0)
+    {
+        perror("Error");
+    }
+
+    // ... Esperar una respuesta positiva
+    data_t respuesta;
+    if (read(pipes[READ], &respuesta, sizeof(respuesta)) < 0)
+    {
+        perror("Error");
+    }
+
+    if (respuesta.type == ERR)
+    {
+        printf("El libro no existe!");
+        return libro1;
+    }
+
+    struct ejemplar libro;
+    libro.isbn = respuesta.data.libro.isbn;
+    libro.libroEjem = respuesta.data.libro.libroEjem;
+    strcpy(libro.nombre, respuesta.data.libro.nombre);
+    libro.num_ejemplar = respuesta.data.libro.num_ejemplar;
+    libro.petition = SOLICITAR;
+
+    printf("La solicitud fue procesada\n\n");
+    return libro;
 }

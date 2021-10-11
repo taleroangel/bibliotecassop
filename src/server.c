@@ -10,12 +10,15 @@
  * Bogotá D.C - Colombia
  */
 
-/* -------------------------------  Libraries ------------------------------- */
+/* ------------------------------  Libraries ------------------------------ */
+#define _XOPEN_SOURCE // Para la función strptime()
+
 // ISO C libraries
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 
 // POSIX syscalls
 #include <unistd.h>
@@ -27,6 +30,7 @@
 #include "server.h"
 #include "common.h"
 #include "data.h"
+#include "libro.h"
 
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
@@ -38,6 +42,14 @@ int main(int argc, char *argv[])
     // Manejar los argumentos
     manejarArgumentos(argc, argv, pipeCTE_SER, archivoEntrada, archivoSalida);
 
+    // Abrir la base de datos
+    FILE *archivo = fopen(archivoEntrada, "r");
+    if (archivo == NULL)
+    {
+        printf("No se puede abrir el archivo\n");
+        return ERROR_APERTURA_ARCHIVO;
+    }
+
     // Iniciar la comunicación
     int pipeRead = startCommunication(pipeCTE_SER);
 
@@ -45,6 +57,35 @@ int main(int argc, char *argv[])
     struct client_list clients;
     clients.nClients = 0;
     clients.clientArray = (client_t *)malloc(sizeof(client_t));
+
+    // Leer cada libro
+    int n_libro = 0;
+    for (int i = 0; i < MAX_CANT_LIBROS; i++)
+    {
+        fscanf(archivo, "%[^,],%d,%d\n",
+               ejemplar[n_libro].nombre,
+               &ejemplar[n_libro].isbn,
+               &ejemplar[n_libro].num_ejemplar);
+
+        int aux = ejemplar[n_libro].num_ejemplar;
+
+        for (int j = 0; j < aux; j++)
+        {
+            if (j > 0)
+            {
+                strcpy(ejemplar[n_libro].nombre, ejemplar[n_libro - 1].nombre);
+                ejemplar[n_libro].isbn = ejemplar[n_libro - 1].isbn;
+                ejemplar[n_libro].num_ejemplar = ejemplar[n_libro - 1].num_ejemplar;
+            }
+
+            fscanf(archivo, "%d,%c,%s\n",
+                   &ejemplar[n_libro].libroEjem.numero,
+                   &ejemplar[n_libro].libroEjem.estado,
+                   ejemplar[n_libro].libroEjem.fecha);
+
+            n_libro++;
+        }
+    }
 
     // Paquete temporal donde se guarda lo recibido por el pipe
     data_t package;
@@ -56,37 +97,41 @@ int main(int argc, char *argv[])
         // Interpretar el tipo de mensaje
         switch (package.type)
         {
-        case SIGNAL:
+        case SIGNAL: //! Cuando se recibe una SEÑAL
             return_status = interpretSignal(&clients, package);
             if (return_status != SUCCESS_GENERIC)
             {
                 fprintf(stderr,
-                        "Hubo un problema en la lectura de un paquete\n");
+                        "Hubo un problema en la solicitud del cliente (%d)\n",
+                        package.client);
                 fprintf(stderr, "SEÑAL: Código de error: %d\n", return_status);
-                perror("SO");
             }
             break;
 
-        case BOOK:
-            return_status = -1; // Aquí va la función que maneja los libros
+        case BOOK:                                                      //! Cuando se recibe un LIBRO
+            return_status = manejarLibros(&clients, package, ejemplar); // Aquí va la función que maneja los libros
             if (return_status != SUCCESS_GENERIC)
             {
                 fprintf(stderr,
-                        "Hubo un problema en la lectura de un paquete\n");
+                        "Hubo un problema en la solicitud del cliente (%d)\n",
+                        package.client);
                 fprintf(stderr, "LIBRO: Código de error: %d\n", return_status);
-                perror("SO");
             }
             break;
 
         default:
-            fprintf(stderr, "Hubo un problema en la lectura de un paquete\n");
+            fprintf(stderr, "Hubo un problema en la solicitud del cliente (%d)\n",
+                    package.client);
             break;
         }
     }
 
     // Notificación
     fprintf(stdout,
-            "Todos los clientes se han desconectado, cerrando el servidor...\n");
+            "\nTodos los clientes se han desconectado, cerrando el servidor...\n");
+
+    // Cerrar el archivo
+    fclose(archivo);
 
     // Eliminar lista de clientes
     free(clients.clientArray);
@@ -99,6 +144,8 @@ int main(int argc, char *argv[])
     fprintf(stdout,
             "Se ha cerrado el pipe (Cliente->Servidor)...\n");
 
+    // Terminar el proceso
+    printf("\nServidor finaliza correctamente\n");
     return EXIT_SUCCESS;
 }
 
@@ -109,7 +156,8 @@ int main(int argc, char *argv[])
 void mostrarUso(void)
 {
     fprintf(stdout,
-            "Uso: ./server -p pipeReceptor -f baseDeDatos -s archivoSalida\n");
+            //"Uso: ./server -p pipeReceptor -f baseDeDatos -s archivoSalida\n");
+            "Uso: ./server -p pipeReceptor -f baseDeDatos\n");
     exit(ERROR_ARG_NOVAL);
 }
 
@@ -120,7 +168,12 @@ void manejarArgumentos(int argc,
                        char *fileOut)
 {
     // Todos los argumentos son obligatorios
+    /*
     if (argc != 7)
+        mostrarUso();
+    */
+
+    if (argc != 5)
         mostrarUso();
 
     // Filtrar los argumentos
@@ -162,6 +215,7 @@ void manejarArgumentos(int argc,
 
             break;
 
+            /*
         case 's':
             // Verificar si ya se usó el argOutumento
             if (argOut)
@@ -177,6 +231,7 @@ void manejarArgumentos(int argc,
             strcpy(fileOut, argv[2]);
 
             break;
+        */
 
         default:
             fprintf(stdout, "Argumento no válido: %s\n", argv[1]);
@@ -293,7 +348,8 @@ int connectClient(struct client_list *clients, data_t package)
 int disconnectClient(struct client_list *clients, data_t package)
 {
     // Notificación
-    fprintf(stdout, "\nUn cliente abandona la comunicación\n");
+    fprintf(stdout, "\nEl cliente (%d) quiere abandonar la comunicación\n",
+            package.client);
 
     if (package.type != SIGNAL && package.data.signal.code != STOP_COM)
     {
@@ -454,4 +510,437 @@ int searchClient(struct client_list *clients, pid_t client)
             return clients->clientArray[i].pipe;
 
     return ERROR_PID_NOT_EXIST;
+}
+
+/* ---------------------------- Manejo de libros ---------------------------- */
+
+int manejarLibros(
+    struct client_list *clients,
+    data_t package,
+    struct ejemplar ejemplar[])
+{
+    // Notificación
+    printf("\nSe recibió una solicitud del cliente (%d)\n", package.client);
+
+    // Optener el pipe del cliente
+    int pipeCliente = searchClient(clients, package.client);
+
+    if (pipeCliente < 0)
+    {
+        perror("Error");
+        return ERROR_COMUNICACION;
+    }
+
+    data_t respuesta;
+    char buffer[TAM_STRING];
+
+    switch (package.data.libro.petition)
+    {
+    case SOLICITAR: //! Petición de solicitud
+    {
+        // Notificar
+        printf("La petición es de tipo: SOLICITAR\n");
+
+        // 1. Buscar el libro
+        struct ejemplar libro = package.data.libro;
+
+        bool encontrado = false;
+        for (int i = 0; i < MAX_CANT_LIBROS; i++)
+        {
+            if (ejemplar[i].isbn == libro.isbn &&
+                (strcmp(ejemplar[i].nombre, libro.nombre) == 0))
+            {
+                encontrado = true;
+            }
+        }
+
+        respuesta = generateReponse(package.client, ERROR, NULL);
+
+        if (!encontrado)
+        {
+            fprintf(stderr, "El libro no fue encontrado...\n");
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return ERROR_SOLICITUD;
+        }
+
+        // Mostrar notificación
+        printf("El libro '%s' fue encontrado\n", libro.nombre);
+
+        // 2. Verificar si está disponible
+
+        bool libroActualizado = false;
+        for (int i = 0; i < MAX_CANT_LIBROS; i++)
+        {
+            if (ejemplar[i].isbn == libro.isbn &&
+                (strcmp(ejemplar[i].nombre, libro.nombre) == 0) &&
+                ejemplar[i].libroEjem.estado == 'D')
+            {
+                printf("El libro '%s' será actualizado\n", libro.nombre);
+
+                // 3. Modificar el estado del libro
+
+                // Actualizar libro
+                // Actualizar su estado
+                libroActualizado = true;
+                ejemplar[i].libroEjem.estado = 'P';
+
+                // Actualizar su fecha //! Tiene que ser dentro de 1 semana
+                char fecha[TAM_STRING];
+                memset(fecha, 0, sizeof(fecha));
+
+                time_t t;
+                struct tm *tm;
+                char fechayhora[TAM_STRING];
+
+                t = time(NULL);
+                tm = localtime(&t);
+
+                //? Añadirle 1 semana
+                tm->tm_sec += WEEK_SEC;
+                mktime(tm);
+
+                // Formatear la fecha
+                strftime(fechayhora, TAM_STRING, "%d-%m-%Y", tm);
+                sprintf(fecha, "%s\n", fechayhora);
+
+                printf("IMPORTANTE: El libro está prestado hasta: %s\n", fecha);
+
+                strcpy(ejemplar[i].libroEjem.fecha, fecha);
+                strcpy(buffer, fecha);
+
+                // Añadir qué ejemplar fue el que se prestó
+                //ADVERTENCIA: como ya no se necesita fecha la usamos de string auxiliar
+                memset(fecha, 0, sizeof(fecha));
+                sprintf(fecha, " (Ejemplar #%d)", ejemplar[i].libroEjem.numero);
+                strcat(buffer, fecha);
+
+                break;
+            }
+        }
+
+        // 4. Avisar al cliente
+        if (!libroActualizado)
+        {
+            respuesta = generateReponse(package.client, ERROR, NULL);
+            fprintf(stderr, "El libro no está disponible\n");
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return ERROR_SOLICITUD;
+        }
+        else
+        {
+            // Enviar también la fecha
+            respuesta = generateReponse(package.client, SOLICITUD, buffer);
+
+            fprintf(stdout, "Solicitud exitosa (%d)\n", package.client);
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return SUCCESS_GENERIC;
+        }
+    }
+    break;
+
+    //TODO
+    case RENOVAR: //! Petición de renovación
+    {
+        // Notificar
+        printf("La petición es de tipo: RENOVAR\n");
+
+        // 1. Buscar el libro
+        struct ejemplar libro = package.data.libro;
+
+        bool encontrado = false;
+        for (int i = 0; i < MAX_CANT_LIBROS; i++)
+        {
+            if (ejemplar[i].isbn == libro.isbn &&
+                (strcmp(ejemplar[i].nombre, libro.nombre) == 0))
+            {
+                encontrado = true;
+            }
+        }
+
+        respuesta = generateReponse(package.client, ERROR, NULL);
+
+        if (!encontrado)
+        {
+            fprintf(stderr, "El libro no fue encontrado...\n");
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return ERROR_SOLICITUD;
+        }
+
+        // Mostrar notificación
+        printf("El libro '%s' fue encontrado\n", libro.nombre);
+
+        // 2. Verificar si está //? OCUPADO
+        bool libroActualizado = false;
+        for (int i = 0; i < MAX_CANT_LIBROS; i++)
+        {
+            if (ejemplar[i].isbn == libro.isbn &&
+                (strcmp(ejemplar[i].nombre, libro.nombre) == 0) &&
+                ejemplar[i].libroEjem.estado == 'P' && //? P de PRESTADO
+                ejemplar[i].libroEjem.numero == libro.libroEjem.numero)
+            {
+                printf("El libro '%s' será actualizado\n", libro.nombre);
+
+                // 3. Modificar el estado del libro
+
+                // Actualizar libro
+                // Actualizar su estado
+                libroActualizado = true;
+                ejemplar[i].libroEjem.estado = 'P'; //? Se deja en PRESTADO
+
+                // Actualizar su fecha
+                //! A LA FECHA DE DEVOLUCIÓN QUE SE TENÍA se le suma 1 semana
+
+                char fecha[TAM_STRING];
+                memset(fecha, 0, sizeof(fecha));
+
+                time_t t;
+                struct tm *fechaLibro;
+
+                t = time(NULL);
+                fechaLibro = localtime(&t);
+
+                //? Obtener fecha del libro
+                strcpy(fecha, ejemplar[i].libroEjem.fecha);
+                strptime(fecha, "%d-%m-%Y", fechaLibro);
+
+                //? Añadirle 1 semana
+                fechaLibro->tm_sec += WEEK_SEC;
+                time_t futura = mktime(fechaLibro);
+
+                double diferencia = difftime(futura, t);
+                bool tarde = false;
+                if (diferencia < 0)
+                {
+                    fprintf(stderr, "La fecha de entrega ya había vencido...\n");
+                    fprintf(stderr, "Nueva fecha de entrega apartir de esta semana\n");
+
+                    memset(buffer, 0, sizeof(buffer));
+                    strcpy(buffer, "(DEVOLUCION TARDE) ");
+
+                    // Fecha a partir de hoy
+                    fechaLibro = localtime(&t);
+                    fechaLibro->tm_sec += WEEK_SEC;
+                    (void)mktime(fechaLibro);
+
+                    tarde = true;
+                }
+
+                // Formatear la fecha
+                strftime(fecha, TAM_STRING, "%d-%m-%Y", fechaLibro);
+
+                printf("IMPORTANTE: El libro está prestado hasta: %s\n", fecha);
+
+                strcpy(ejemplar[i].libroEjem.fecha, fecha);
+
+                if (!tarde)
+                    strcpy(buffer, fecha);
+                else
+                    strcat(buffer, fecha);
+
+                break;
+            }
+        }
+
+        // 4. Avisar al cliente
+        if (!libroActualizado)
+        {
+            respuesta = generateReponse(package.client, ERROR, NULL);
+            fprintf(stderr, "El libro no está disponible\n");
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return ERROR_SOLICITUD;
+        }
+        else
+        {
+            // Enviar también la fecha
+            //? Cambiar el tipo de paquete
+            respuesta = generateReponse(package.client, RENOVACION, buffer);
+
+            fprintf(stdout, "Solicitud exitosa (%d)\n", package.client);
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return SUCCESS_GENERIC;
+        }
+    }
+    break;
+
+    case DEVOLVER: //! Petición de devolución
+    {
+        // Notificar
+        printf("La petición es de tipo: DEVOLVER\n");
+
+        // 1. Buscar el libro
+        struct ejemplar libro = package.data.libro;
+
+        bool encontrado = false;
+        for (int i = 0; i < MAX_CANT_LIBROS; i++)
+        {
+            if (ejemplar[i].isbn == libro.isbn &&
+                (strcmp(ejemplar[i].nombre, libro.nombre) == 0))
+            {
+                encontrado = true;
+            }
+        }
+
+        respuesta = generateReponse(package.client, ERROR, NULL);
+
+        if (!encontrado)
+        {
+            fprintf(stderr, "El libro no fue encontrado...\n");
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return ERROR_SOLICITUD;
+        }
+
+        // Mostrar notificación
+        printf("El libro '%s' fue encontrado\n", libro.nombre);
+
+        // 2. Verificar si está //? OCUPADO
+        bool libroActualizado = false;
+        for (int i = 0; i < MAX_CANT_LIBROS; i++)
+        {
+            if (ejemplar[i].isbn == libro.isbn &&
+                (strcmp(ejemplar[i].nombre, libro.nombre) == 0) &&
+                ejemplar[i].libroEjem.estado == 'P' && //? P de PRESTADO
+                ejemplar[i].libroEjem.numero == libro.libroEjem.numero)
+            {
+                printf("El libro '%s' será actualizado\n", libro.nombre);
+
+                // 3. Modificar el estado del libro
+
+                // Actualizar libro
+                // Actualizar su estado
+                libroActualizado = true;
+                ejemplar[i].libroEjem.estado = 'D'; //? Se pone disponible
+
+                // Actualizar su fecha //? FECHA ACTUAL (Devolución)
+                char fecha[TAM_STRING];
+                memset(fecha, 0, sizeof(fecha));
+
+                time_t t;
+                struct tm *tm;
+                char fechayhora[TAM_STRING];
+
+                t = time(NULL);
+                tm = localtime(&t);
+                strftime(fechayhora, TAM_STRING, "%d-%m-%Y", tm);
+                sprintf(fecha, "%s\n", fechayhora);
+
+                //? INFORMACION
+                printf("IMPORTANTE: El libro fue devuelto en: %s", fecha);
+
+                strcpy(ejemplar[i].libroEjem.fecha, fecha);
+                strcpy(buffer, fecha);
+                break;
+            }
+        }
+
+        // 4. Avisar al cliente
+        if (!libroActualizado)
+        {
+            respuesta = generateReponse(package.client, ERROR, NULL);
+            fprintf(stderr, "El libro no está disponible\n");
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return ERROR_SOLICITUD;
+        }
+        else
+        {
+            // Enviar también la fecha
+            //? Cambiar el tipo de paquete
+            respuesta = generateReponse(package.client, DEVOLUCION, buffer);
+
+            fprintf(stdout, "Solicitud exitosa (%d)\n", package.client);
+            if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+            {
+                perror("Error");
+                return ERROR_SOLICITUD;
+            }
+            return SUCCESS_GENERIC;
+        }
+    }
+    break;
+
+    case BUSCAR: //! Petición de búsqueda
+    {
+        // Notificar
+        printf("La petición es de tipo: BUSCAR\n");
+
+        // 1. Buscar el libro
+        struct ejemplar libro = package.data.libro;
+
+        bool encontrado = false;
+        for (int i = 0; i < MAX_CANT_LIBROS; i++)
+        {
+            if (ejemplar[i].isbn == libro.isbn &&
+                (strcmp(ejemplar[i].nombre, libro.nombre) == 0))
+            {
+                encontrado = true;
+
+                respuesta.type = BOOK;
+                respuesta.client = package.client;
+                respuesta.data.libro = ejemplar[i];
+
+                if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+                {
+                    perror("Error");
+                    return ERROR_COMUNICACION;
+                }
+
+                // Mostrar notificación
+                printf("El libro '%s' fue encontrado\n", libro.nombre);
+
+                return SUCCESS_GENERIC;
+            }
+        }
+
+        respuesta = generateReponse(package.client, ERROR, NULL);
+        respuesta.type = ERR;
+
+        fprintf(stderr, "El libro no fue encontrado...\n");
+        if (write(pipeCliente, &respuesta, sizeof(respuesta)) < 0)
+        {
+            perror("Error");
+            return ERROR_SOLICITUD;
+        }
+        return ERROR_SOLICITUD;
+
+        // Mostrar notificación
+        fprintf(stderr, "El libro '%s' NO fue encontrado\n", libro.nombre);
+    }
+    break;
+
+    default:
+        return ERROR_COMUNICACION;
+    }
+
+    return SUCCESS_GENERIC;
 }
