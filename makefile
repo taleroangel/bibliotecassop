@@ -6,7 +6,7 @@ CFLAGS = -O3 -Wall -Wno-sizeof-pointer-memaccess -Wno-unused-but-set-variable -W
 SRC_DIR = ./src
 BLD_DIR = ./build
 BIN_DIR = ./bin
-DOC_DIR = ./docs
+DOC_DIR = ./docs/doxy
 
 COMMON	= $(SRC_DIR)/common.h $(SRC_DIR)/data.h
 
@@ -36,10 +36,12 @@ $(BLD_DIR)/client.o: $(SRC_DIR)/client.c $(SRC_DIR)/client.h $(COMMON)
 .PHONY: clean
 clean:
 	@rm -rf $(BLD_DIR)/ $(BIN_DIR)/ $(DOC_DIR)
+	@unlink ./docs/Documentacion.html
 	@echo -e "Se eliminaron los ejecutables"
 
 .PHONY: docs
 docs:
 	@mkdir -p $(DOC_DIR)
 	@doxygen ./doxyconf
+	@ln -sf $(DOC_DIR)/html/index.html ./docs/Documentacion.html
 	@echo -e "Se creó documentacion doxygen"

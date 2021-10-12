@@ -1,4 +1,8 @@
+# Compilation and IDE files
 /.vscode/
 [Bb][Uu][Ii][Ll][Dd]
 [Bb][Ii][Nn]
-[Dd][Oo][Cc][Ss]
+
+# Documentation
+/docs/doxy/
+/docs/Documentacion.html

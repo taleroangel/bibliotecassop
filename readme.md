@@ -1,20 +1,42 @@
 # Bibliotecas SOP
 BibliotecasSOP es un sistema de gestión bibliotecario para Solicitar, Renovar o Devolver libros. Se compone de un único Servidor al cual múltiples Clientes pueden conectarse y procesas solicitudes
 
+## Compilación
+###### Ejecutables
+Para compilar el programa sólo hace falta utilizar el comando 'make' en la carpeta padre 'bibliotecassop'
+> make
+
+Los ejecutables se encontrarán en la carpeta 'bin' y todos los archivos de prueba se copiarán a ese mismo directorio.
+
+###### Documentación
+Para crear la documentación de Doxygen puede correr el siguiente comando desde la carpeta padre:
+> make docs
+
+Los archivos HTML y LATEX se encuentran en la carpeta './docs/doxy', la página HTML puede verse abriendo el archivo 'Documentacion.html' dentro de la carpeta padre 'bibliotecassop'
+
+###### Limpiar
+Para eliminar todos los archivos generados por make (incluye binarios y documentación), puede correr el siguiente comando desde la carpeta padre:
+> make clean
+
 ## Uso
 
 ### Servidor
+El Servidor se encarga de leer y manipular la Base de Datos (BD) de los libros, los operaciones a realizar en la BD están dadas por las peticiones que hagan los Clientes al Servidor ([véase ¿Cómo se envían información entre Cliente y Servidor?](#¿cómo-se-envía-información-entre-cliente-y-servidor)), debe crear el Servidor antes que cualquier Cliente de la siguiente manera:
+
 > Uso: ./server -p pipeServidor -f baseDeDatos
 
 el flag -f se utiliza para específicar el archivo de texto donde se almacena la base de datos de todos los libros ([veáse Base de datos](#base-de-datos))
 
 ### Cliente
+El Cliente se encargará de recibir las peticiones a realizar y se las enviará al Servidor ([véase Servidor](#servidor)).<br>
+Antes de que crear cualquier Cliente, debe haber un Servidor actualmente en ejecución y el nombre de su pipe (Cliente->Servidor) debe pasarse por parámetro al Cliente
+
 > Uso: ./client [-i Archivo] -p pipeServidor<br>
 > [-i archivo] es opcional!
 
 Las peticiones pueden realizarse mediante un archivo de texto con el flag -i, si no se utiliza este flag se mostrará un menú ([veáse Archivo de peticiones](#archivo-de-peticiones))
 
-Sólo se puede tener un único servidor pero múltiples clientes conectados al mismo
+Sólo se puede tener un único servidor pero múltiples clientes conectados al mismo.
 
 ## Archivos de texto
 ### Base de datos
@@ -26,8 +48,8 @@ Formato:
 
 ##### Estado
 Caractér que indica el estado
-D: Disponible
-P: Prestado
+* D: Disponible
+* P: Prestado
 ### Archivo de peticiones
 Este archivo será leído por el Cliente y es opcional, si no se utiliza archivo el cliente mostrará un menú ([véase Cliente](#cliente)), un ejemplo de este archivo puede ser encontrado en (./archivo_prueba/PS.txt) y (./archivo_prueba/PS1.txt)
 
@@ -40,7 +62,7 @@ Caractér que indica el tipo de petición
 - D: Devolver
 - R: Renovar
 
-## ¿Cómo se envían información entre Cliente y Servidor?
+## ¿Cómo se envía información entre Cliente y Servidor?
 ### Pipes
 La comunicación entre Clientes y Servidor se da mediante pipes nominales de la librería POSIX
 
@@ -62,16 +84,20 @@ Este tipo de paquete indica que se está enviando una señal (Usualmente el Serv
 
 **Listado de señales:**
 _Señales de peticiones:_
-> #define PET_ERROR -3 // Error de petición<br>
-> #define SOLICITUD 3  // Solicitud exitosa<br>
-> #define RENOVACION 4 // Renovación exitosa<br>
-> #define DEVOLUCION 5 // Devolución exitosa
+| Señal      	| Codigo 	| Descripción                    	|
+|------------	|--------	|--------------------------------	|
+| PET_ERROR  	| -3     	| Error de lectura de un archivo 	|
+| SOLICITUD  	| 3      	| Solicitud exitosa              	|
+| RENOVACION 	| 4      	| Renovación exitosa             	|
+| DEVOLUCION 	| 5      	| Devolución exitosa             	|
 
 _Señales de confirmación de comunicación:_
->  #define START_COM 1   // Señal para empezar comunicación<br>
->  #define STOP_COM -1   // Señal para detener confirmación<br>
->  #define SUCCEED_COM 2 // Señal de confirmación de comunicación<br>
->  #define FAILED_COM -2 // Señal de fallo en la comunicación (TERMINACION)
+| Señal       	| Codigo 	| Descripción                                     	|
+|-------------	|--------	|-------------------------------------------------	|
+| START_COM   	| 1      	| Señal para empezar comunicación                 	|
+| STOP_COM    	| -1     	| Señal para detener confirmación                 	|
+| SUCCEED_COM 	| 2      	| Señal de confirmación de comunicación           	|
+| FAILED_COM  	| -2     	| Señal de fallo en la comunicación (TERMINACIÓN) 	|
 
 ###### BOOK
 Este tipo de paquete contiene la información de un libro, usualmente el Cliente envía este tipo de paquete al Servidor para solicitar, renovar o devolver un libro, (data_t.data.libro)
@@ -81,26 +107,26 @@ Cada libro tiene un tipo de petición: SOLICITAR, RENOVAR, DEVOLVER y BUSCAR que
 Este tipo de dato no está asociado a ninguna estructura, se usa para indicar un error genérico como respuesta
 
 ## Protocolo de comunicación
-* Sólo existe un pipe (Cliente ->  Servidor) por el cual todos los Cliente se comunican con el servidor, este pipe lo crea y destruye el Servidor
-* Existe un pipe por cada cliente (Servidor ->  Cliente), este pipe lo crea y destruye el cliente dueño
+* Sólo existe un pipe (Cliente->Servidor) por el cual todos los Cliente se comunican con el servidor, este pipe lo crea y destruye el Servidor
+* Existe un pipe por cada cliente (Servidor->Cliente), este pipe lo crea y destruye el cliente dueño
 * El servidor tiene una lista interna con los pid de todos los cliente actualmente conectados
 
 ### Apertura de la comunicación
 **Cuando el Servidor inicia comunicación:**
 * Servidor debe iniciar comunicación antes que cualquier cliente y sólo lo hace una vez al ejecutarse
   
-1. Servidor crea el pipe (Cliente-> Servidor)
-2. Servidor abre el pipe (Cliente-> Servidor) para LECTURA
+1. Servidor crea el pipe (Cliente->Servidor)
+2. Servidor abre el pipe (Cliente->Servidor) para LECTURA
 
 **Cuando el Cliente inicia comunicación:**
-* Cualquier cliente tiene que iniciar comunicación después que el servidor, de no existir el pipe (Cliente-> Servidor) el proceso finalizará
+* Cualquier cliente tiene que iniciar comunicación después que el servidor, de no existir el pipe (Cliente->Servidor) el proceso finalizará
 * el Cliente intenta establecer conexión con el servidor un número determinado de intentos [INTENTOS_ESCRITURA] y esperará una respuesta del servidor durante [TIMEOUT_COMUNICACION] segundos
   
-1. Cliente abre el pipe (Cliente-> Servidor) para ESCRITURA
-2. Cliente crea un pipe (Servidor-> Cliente)
-3. Cliente envía a Servidor el nombre del pipe (Servidor-> Cliente) mediante una señal [START_COM]
-4. Cliente abre el pipe (Servidor-> Cliente) para LECTURA
-5. Servidor abre el pipe (Servidor-> Cliente) para ESCRITURA
+1. Cliente abre el pipe (Cliente->Servidor) para ESCRITURA
+2. Cliente crea un pipe (Servidor->Cliente)
+3. Cliente envía a Servidor el nombre del pipe (Servidor->Cliente) mediante una señal [START_COM]
+4. Cliente abre el pipe (Servidor->Cliente) para LECTURA
+5. Servidor abre el pipe (Servidor->Cliente) para ESCRITURA
 6. Servidor guarda la información de Cliente con su respectivo pipe de comunicación
 7. Servidor envía una señal de confirmación a Cliente
 8. Cliente espera una señal de Servidor [SUCCEED_COM]
@@ -109,49 +135,62 @@ Este tipo de dato no está asociado a ninguna estructura, se usa para indicar un
 
 **Cuando el Cliente termina comunicación:**
 * Cuando un Cliente pierda la comunicación debe terminar el proceso Cliente
-* el Cliente que quiera finalizar la comunicación debe eliminar el pipe (Servidor-> Cliente) asociado
+* el Cliente que quiera finalizar la comunicación debe eliminar el pipe (Servidor->Cliente) asociado
 * Cuando no hayan Clientes conectados al Servidor, éste también debe finalizar
 
 1. Cliente manda una petición de terminación de comunicación al Servidor
-2. Servidor cierra la escritura del pipe (Servidor-> Cliente)
+2. Servidor cierra la escritura del pipe (Servidor->Cliente)
 3. Servidor actualiza la lista de clientes
 4. Cliente espera a que se cierre el pipe
-5. Cliente cierra la lectura del pipe (Servidor-> Cliente)
-6. Cliente elimina el pipe (Servidor-> Cliente)
-7. Cliente cierra la escritura del pipe (Cliente-> Servidor)
+5. Cliente cierra la lectura del pipe (Servidor->Cliente)
+6. Cliente elimina el pipe (Servidor->Cliente)
+7. Cliente cierra la escritura del pipe (Cliente->Servidor)
 8. El proceso Cliente finaliza
 
-## Errores
+## Diagrama de secuencia
+Representación gráfica del proceso de comunicación ([véase Protocolo de comunicación](#protocolo-de-comunicación))<br>
+![DiagramaDeSecuencia](./docs/img/DiagramaSecuencia.png)
+
+## Lista de códigos de error
 Si existe un error en la ejecución de alguno de los procesos o solicitudes, el programa puede retornar alguno de los siguientes códigos de error:
 
-Errores genéricos
->  #define SUCCESS_GENERIC 0  // Exitoso<br>
->  #define FAILURE_GENERIC -1 // Falló<br>
->  #define ERROR_MEMORY -6    // Error de alojamiento de memoria<br>
->  #define ERROR_FATAL 1      // Error irrecuperable<br>
->  #define ERROR_ARG_NOVAL 2  // Error en argumentos
+_Errores genéricos:_
+| Error           	| Codigo 	| Descripción         	|
+|-----------------	|--------	|---------------------	|
+| SUCCESS_GENERIC 	| 0      	| Exitoso             	|
+| FAILURE_GENERIC 	| -1     	| Falló               	|
+| ERROR_FATAL     	| 1      	| Error irrecuperable 	|
 
 Apertura de arhivos
->  #define ERROR_APERTURA_ARCHIVO 3<br>
->  #define ERROR_CIERRE_ARCHIVO 4
+| Error                  	| Codigo 	| Descripción                        	|
+|------------------------	|--------	|------------------------------------	|
+| ERROR_APERTURA_ARCHIVO 	| 2      	| Error en la apertura de un archivo 	|
+| ERROR_CIERRE_ARCHIVO   	| 3      	| Error en el cierre de un archivo   	|
 
-Error de pipes
->  #define ERROR_PIPE_SER_CTE 5<br>
->  #define ERROR_PIPE_CTE_SER 6<br>
->  #define ERROR_COMUNICACION 7
+_Error de pipes:_
+| Error              	| Codigo 	| Descripción                          	|
+|--------------------	|--------	|--------------------------------------	|
+| ERROR_PIPE_SER_CTE 	| 4      	| Error en el pipe (Servidor->Cliente) 	|
+| ERROR_PIPE_CTE_SER 	| 5      	| Error en el pipe (Cliente->Servidor) 	|
+| ERROR_COMUNICACION 	| 6      	| Error de comunicación                	|
 
-Lectura / Escritura
->  #define ERROR_LECTURA 8<br>
->  #define ERROR_ESCRITURA 9
+_Lectura / Escritura:_
+| Error           	| Codigo 	| Descripción                      	|
+|-----------------	|--------	|----------------------------------	|
+| ERROR_LECTURA   	| 7      	| Error de lectura de un archivo   	|
+| ERROR_ESCRITURA 	| 8      	| Error de escritura de un archivo 	|
 
-Otros errores
->  #define ERROR_PID_NOT_EXIST -3<br>
->  #define ERROR_SOLICITUD 10
+_Otros errores:_
+| Error               	| Codigo 	| Descripción                     	|
+|---------------------	|--------	|---------------------------------	|
+| ERROR_ARG_NOVAL     	| 9      	| Error en argumentos             	|
+| ERROR_MEMORY        	| 10     	| Error de alojamiento de memoria 	|
+| ERROR_PID_NOT_EXIST 	| 11     	| PID del cliente no existe       	|
+| ERROR_SOLICITUD     	| 12     	| Solicitud inválida              	|
 
 ## Créditos
-Proyecto para la materia de Sistemas Operativos
-
-Pontificia Universidad Javeriana, Facultad de Ingeniería
+Proyecto para la materia de Sistemas Operativos<br>
+Pontificia Universidad Javeriana, Facultad de Ingeniería 2021
 
 * Ángel David Talero
 * Juan Esteban Urquijo

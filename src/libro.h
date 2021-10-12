@@ -25,8 +25,7 @@
 
 //-----Variables globales-----//
 
-#define MAX_CANT_LIBROS 100
-#define MAX_CANT_LINEAS 1000
+#define MAX_CANT_LIBROS 100  /**< Máxima cantidad de libros en el arreglo*/
 
 //-----Estructuras de datos-----//
 
@@ -45,8 +44,8 @@ enum PETICION
 
 /**
  * @struct libro
- * @brief Describe la información adicional de cada uno de los ejemplares que componen
- * un libro
+ * @brief Describe la información adicional de cada uno de los
+ * ejemplares que componen un libro
  */
 struct libro
 {

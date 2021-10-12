@@ -1,6 +1,6 @@
 /**
  * @file client.h
- * @authors  Ángel David Talero
+ * @authors Ángel David Talero
  *          Juan Esteban Urquijo
  *          Humberto Rueda Cataño
  * @brief Proceso solicitante
@@ -18,7 +18,7 @@
 
 /* ----------------------------- Definiciones ----------------------------- */
 
-#define PIPE_NOM_CTE "pipeCliente_" // Nombre con el cual crear los pipes de cliente
+#define PIPE_NOM_CTE "pipeCliente_" /**< Nombre con el cual crear los pipes de cliente*/
 
 /* ----------------------------- Estructuras ----------------------------- */
 
@@ -92,12 +92,12 @@ static void iniciarComunicacion(
 static void detenerComunicacion(int *pipe, char *pipeSER_CTE);
 
 /**
- * @brief Generate a SIGNAL package
+ * @brief Generar un paquete de tipo Señal
  * 
- * @param src Source Client PID
- * @param code Signal code
- * @param buffer Buffer [OPTIONAL], NULL if not required
- * @return data_t new package
+ * @param src PID del cliente quien envía
+ * @param code Código de la señal
+ * @param buffer Buffer [OPCIONAL], NULL si no se necesita
+ * @return data_t Nuevo paquete con la señal
  */
 data_t generarSenal(pid_t src, int code, char *buffer);
 
@@ -108,7 +108,7 @@ data_t generarSenal(pid_t src, int code, char *buffer);
  * 
  * @param pipes Arreglo con los pipes
  * @param nombreLibro Nombre del libro
- * @param ISBN Su ISBN
+ * @param ISBN ISBN del libro
  * @return int Código de error o SUCCESS_GENERIC (0) si éxito
  */
 int prestarLibro(int *pipes, const char *nombreLibro, int ISBN);
@@ -118,7 +118,7 @@ int prestarLibro(int *pipes, const char *nombreLibro, int ISBN);
  * 
  * @param pipes Arreglo con los pipes
  * @param nombreLibro Nombre del libro
- * @param ISBN Su ISBN
+ * @param ISBN ISBN del libro
  * @param ejemplar Número de ejemplar
  * @return int Código de error o SUCCESS_GENERIC (0) si éxito
  */
@@ -133,7 +133,7 @@ int devolverLibro(
  * 
  * @param pipes Arreglo con los pipes
  * @param nombreLibro Nombre del libro
- * @param ISBN Su ISBN
+ * @param ISBN ISBN del libro
  * @param ejemplar Número de ejemplar
  * @return int Código de error o SUCCESS_GENERIC (0) si éxito
  */

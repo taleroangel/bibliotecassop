@@ -23,14 +23,14 @@
 
 /**
  * @struct client_t
- * @brief Estructura con la infroamción de un cliente
+ * @brief Estructura con la información de un clinete
  * 
  */
 typedef struct
 {
-    int pipe;                 /**< Pipe FD*/
-    pid_t clientPID;          /**< Client PID*/
-    char pipeNom[TAM_STRING]; /**< Pipe name*/
+    int pipe;                 /**< File descriptor del pipe (Servidor->Cliente) asociado*/
+    pid_t clientPID;          /**< PID del cliente*/
+    char pipeNom[TAM_STRING]; /**< Nombre del pipe (Servidor->Cliente)*/
 } client_t;
 
 /**
@@ -114,12 +114,12 @@ int retirarCliente(struct client_list *clients, data_t package);
 int interpretarSenal(struct client_list *clients, data_t package);
 
 /**
- * @brief Generate a SIGNAL package as a reponse to the client
+ * @brief Generar una señal como respuesta a un Cliente
  * 
- * @param dest Destination Client PID
- * @param code Signal code
- * @param buffer Buffer [OPTIONAL], NULL if not required
- * @return data_t new package
+ * @param dest PID del cliente destino
+ * @param code Código de la señal
+ * @param buffer Buffer [OPCIONAL], NULL de no necesitarse
+ * @return data_t Nuevo paquete a enviar
  */
 data_t generarRespuesta(pid_t dest, int code, char *buffer);
 
@@ -128,7 +128,7 @@ data_t generarRespuesta(pid_t dest, int code, char *buffer);
 /**
  * @brief Crear un Cliente
  * 
- * @param pipefd FD del pipe del cliente
+ * @param pipefd File Descriptor del pipe (Servidor->Cliente)
  * @param clientpid PID del cliente
  * @param pipenom Nombre del pipe del cliente
  * @return client_t Estructura con el cliente
@@ -140,7 +140,7 @@ client_t crearCliente(int pipefd, pid_t clientpid, char *pipenom);
  * 
  * @param clients Apuntador a arreglo de clientes
  * @param client Cliente a guardar
- * @return non 0 if error
+ * @return SUCCESS_GENERIC si éxito, cualquier otro valor de lo contrario
  */
 int guardarCliente(struct client_list *clients, client_t client);
 
@@ -149,7 +149,7 @@ int guardarCliente(struct client_list *clients, client_t client);
  * 
  * @param clients Apuntador a arreglo de clientes
  * @param clientToRemove Cliente a guardar
- * @return non 0 if error
+ * @return SUCCESS_GENERIC si éxito, cualquier otro valor de lo contrario
  */
 int removerCliente(struct client_list *clients, pid_t clientToRemove);
 
@@ -166,9 +166,9 @@ int buscarCliente(struct client_list *clients, pid_t client);
  * @brief Manejar una solicitud de libro
  * 
  * @param clients Lista de los clientes
- * @param package Paquete
+ * @param package Paquete recibido
  * @param ejemplar Arreglo con los libros de la BD
- * @return int Error o 0 si exitoso
+ * @return SUCCESS_GENERIC si éxito, cualquier otro valor de lo contrario
  */
 int manejarLibros(
     struct client_list *clients,

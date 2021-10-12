@@ -30,7 +30,7 @@ enum TYPE_T
 
 /**
  * @struct SIGNAL_T
- * @brief Estructura de la SEÑAL
+ * @brief Estructura que compone una señal
  */
 struct SIGNAL_T
 {
@@ -40,7 +40,8 @@ struct SIGNAL_T
 
 /**
  * @union IN_DATA_T
- * @brief Datos a transmitir ya sea un libro o una señal
+ * @brief Datos del mensaje transmitido por \ref data_t,
+ * puede ser de tipo señal o de tipo libro
  */
 union IN_DATA_T
 {
@@ -58,7 +59,8 @@ datos que contiene (datos o señal), y contiene los datos transmitidos
 
 /**
  * @struct data_t
- * @brief Dato que será enviado a través de los pipes
+ * @brief Dato que será enviado a través de los pipes, también conocido
+ * como Paquete o Mensaje
  */
 typedef struct
 {
