@@ -14,11 +14,11 @@
 #define __CLIENT_H__
 
 #include <stdbool.h>
-#include "data.h"
+#include "paquet.h"
 
 /* ----------------------------- Definiciones ----------------------------- */
 
-#define PIPE_NOM_CTE "pipeCliente_" /**< Nombre con el cual crear los pipes de cliente*/
+#define PIPE_TITLE_CLNT "clientPipe_" /**< Nombre con el cual crear los pipes de cliente*/
 
 /* ----------------------------- Estructuras ----------------------------- */
 
@@ -29,9 +29,9 @@
  */
 struct peticion_t
 {
-    char peticion;           /**< Tipo de peticion a realizar*/
-    char nombre[TAM_STRING]; /**< Nombre del libro*/
-    int isbn;                /**< ISBN del libro */
+    char request;              /**< Tipo de peticion a realizar*/
+    char bookName[TAM_STRING]; /**< Nombre del libro*/
+    int ISBN;                  /**< ISBN del libro */
 };
 
 /* ------------------------ Prototipos de funciones ------------------------ */
@@ -71,25 +71,25 @@ static bool manejarArgumentos(
  * @brief Iniciar la comunicación con el servidor
  * Descripción del proceso en README.md
  * 
- * @param pipeCTE_SER Nombre del pipe (Cliente->Servidor)
- * @param pipeSER_CTE RETORNA: nombre escogido para el pipe (Servidor->Cliente)
+ * @param pipeCLNT_SRVR Nombre del pipe (Cliente->Servidor)
+ * @param pipeSRVR_CLNT RETORNA: nombre escogido para el pipe (Servidor->Cliente)
  * @param pipe pipe[0] tiene el pipe del pipe (Cliente -> Servidor) y
  *          pipe[1] tiene el pipe del pipe (Servidor -> Cliente)
  * Use las macros WRITE y READ con pipe
  * EJ: para escribir en el pipe se utilizar pipe[WRITE]
  */
 static void iniciarComunicacion(
-    const char *pipeCTE_SER,
-    char *pipeSER_CTE,
+    const char *pipeCLNT_SRVR,
+    char *pipeSRVR_CLNT,
     int *pipe);
 
 /**
  * @brief Detener la comunicación con el servidor
  * 
  * @param pipe Pipes de lectura/escritura
- * @param pipeSER_CTE Nombre del pipe creado por el Cliente
+ * @param pipeSRVR_CLNT Nombre del pipe creado por el Cliente
  */
-static void detenerComunicacion(int *pipe, char *pipeSER_CTE);
+static void detenerComunicacion(int *pipe, char *pipeSRVR_CLNT);
 
 /**
  * @brief Generar un paquete de tipo Señal
@@ -97,9 +97,9 @@ static void detenerComunicacion(int *pipe, char *pipeSER_CTE);
  * @param src PID del cliente quien envía
  * @param code Código de la señal
  * @param buffer Buffer [OPCIONAL], NULL si no se necesita
- * @return data_t Nuevo paquete con la señal
+ * @return paquet_t Nuevo paquete con la señal
  */
-data_t generarSenal(pid_t src, int code, char *buffer);
+paquet_t generarSenal(pid_t src, int code, char *buffer);
 
 /* ----------------------- Funciones para los libros ----------------------- */
 
@@ -152,6 +152,6 @@ int renovarLibro(
  * @return struct ejemplar Estructura que contiene al libro, en caso de error
  * la petición del libro es BUSCAR, cualquier otro tipo de petición es éxito
  */
-struct ejemplar buscarLibro(int *pipes, const char *nombre, int ISBN);
+book_t buscarLibro(int *pipes, const char *nombre, int ISBN);
 
 #endif // __CLIENT_H__

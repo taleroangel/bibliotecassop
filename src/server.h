@@ -15,7 +15,7 @@
 
 #include <stdbool.h>
 #include "common.h"
-#include "data.h"
+#include "paquet.h"
 
 /* ----------------------------- Definiciones ----------------------------- */
 
@@ -28,9 +28,10 @@
  */
 typedef struct
 {
-    int pipe;                 /**< File descriptor del pipe (Servidor->Cliente) asociado*/
-    pid_t clientPID;          /**< PID del cliente*/
-    char pipeNom[TAM_STRING]; /**< Nombre del pipe (Servidor->Cliente)*/
+    int pipe;                      /**< File descriptor del pipe (Servidor->Cliente) asociado*/
+    pid_t clientPID;               /**< PID del cliente*/
+    char pipeFilename[TAM_STRING]; /**< Nombre del pipe (Servidor->Cliente)*/
+
 } client_t;
 
 /**
@@ -40,7 +41,7 @@ typedef struct
  */
 struct client_list
 {
-    int nClients;          /**< Número de clientes en el arreglo*/
+    int n_clients;         /**< Número de clientes en el arreglo*/
     client_t *clientArray; /**< Arreglo de clientes conectados*/
 };
 
@@ -65,7 +66,7 @@ void mostrarUso(void);
  * 
  * @param argc Numero de argumentos
  * @param argv Vector con los argumentos
- * @param pipeNom RETORNA: nombre del pipe
+ * @param pipeFilename RETORNA: nombre del pipe
  * @param fileIn RETORNA: Nombre del archivo de entrada
  * @param fileOut RETORNA: Nombre del archivo de salida
  */
@@ -76,16 +77,41 @@ static void manejarArgumentos(
     char *fileIn,
     char *fileOut);
 
+/* ----------------------- Manejo de la Base de Datos ----------------------- */
+/**
+ * @brief Abrir el archivo de BD y almacenar todos los libros
+ * 
+ * @param booksDatabase Arreglo con todos los libros
+ * @param filename Nombre del archivo a leer
+ * @return Cantidad de libros que se leyeron en total
+ * 
+ * @note El archivo se abre y se cierra en la misma función pues no tiene porqué
+ * ser utilizado más adelante en el programa
+ */
+int leerDatabase(book_t booksDatabase[], const char filename[]);
+
+/**
+ * @brief Actualizar la información de la base de datos
+ * 
+ * @param filename Archivo a escribir
+ * @param booksDatabase Arreglo de base de datos
+ * @param tam_database Tamaño de la base de datos
+ * @return Return error
+ */
+int actualizarDatabase(const char filename[],
+                        book_t booksDatabase[],
+                        int tam_database);
+
 /* ----------------------- Protocolos de comunicación ----------------------- */
 
 /**
  * @brief Iniciar la comunicación, permitir a los cliente conectarse
  * Descripción del proceso en README.md
  * 
- * @param pipeCTE_SER Nombre del pipe (Cliente->Servidor)
+ * @param pipeCLNT_SRVR Nombre del pipe (Cliente->Servidor)
  * @return fd del Pipe (Cliente-Servidor)
  */
-static int iniciarComunicacion(const char *pipeCTE_SER);
+static int iniciarComunicacion(const char *pipeCLNT_SRVR);
 
 /**
  * @brief Conectar un cliente a la lista
@@ -94,7 +120,7 @@ static int iniciarComunicacion(const char *pipeCTE_SER);
  * @param package Copia del paquete recibido por el pipe
  * @return int Exit error code or SUCCESS_GENERIC
  */
-int conectarCliente(struct client_list *clients, data_t package);
+int conectarCliente(struct client_list *clients, paquet_t package);
 
 /**
  * @brief Desconectar un cliente de la lista
@@ -103,7 +129,7 @@ int conectarCliente(struct client_list *clients, data_t package);
  * @param package Copia del paquete recibido por el pipe
  * @return int Exit error code or SUCCESS_GENERIC
  */
-int retirarCliente(struct client_list *clients, data_t package);
+int retirarCliente(struct client_list *clients, paquet_t package);
 
 /**
  * @brief Interpretar una señal
@@ -111,7 +137,7 @@ int retirarCliente(struct client_list *clients, data_t package);
  * @param package Paquete con la señal
  * @return int (-1) si hay algún error
  */
-int interpretarSenal(struct client_list *clients, data_t package);
+int interpretarSenal(struct client_list *clients, paquet_t package);
 
 /**
  * @brief Generar una señal como respuesta a un Cliente
@@ -119,9 +145,9 @@ int interpretarSenal(struct client_list *clients, data_t package);
  * @param dest PID del cliente destino
  * @param code Código de la señal
  * @param buffer Buffer [OPCIONAL], NULL de no necesitarse
- * @return data_t Nuevo paquete a enviar
+ * @return paquet_t Nuevo paquete a enviar
  */
-data_t generarRespuesta(pid_t dest, int code, char *buffer);
+paquet_t generarRespuesta(pid_t dest, int code, char *buffer);
 
 /* --------------------------- Manejo de clientes --------------------------- */
 
@@ -172,7 +198,7 @@ int buscarCliente(struct client_list *clients, pid_t client);
  */
 int manejarLibros(
     struct client_list *clients,
-    data_t package,
-    struct ejemplar ejemplar[]);
+    paquet_t package,
+    book_t ejemplar[]);
 
 #endif // __SERVER_H__

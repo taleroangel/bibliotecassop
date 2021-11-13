@@ -53,8 +53,8 @@
 #define ERROR_CIERRE_ARCHIVO 3   /**< Error en el cierre de un archivo*/
 
 /**< Error de pipes*/
-#define ERROR_PIPE_SER_CTE 4 /**< Error en el pipe (Servidor->Cliente)*/
-#define ERROR_PIPE_CTE_SER 5 /**< Error en el pipe (Cliente->Servidor)*/
+#define ERROR_PIPE_SRVR_CLNT 4 /**< Error en el pipe (Servidor->Cliente)*/
+#define ERROR_PIPE_CLNT_SRVR 5 /**< Error en el pipe (Cliente->Servidor)*/
 #define ERROR_COMUNICACION 6 /**< Error de comunicación*/
 
 /**< Lectura / Escritura*/

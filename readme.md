@@ -170,8 +170,8 @@ Apertura de arhivos
 _Error de pipes:_
 | Error              	| Codigo 	| Descripción                          	|
 |--------------------	|--------	|--------------------------------------	|
-| ERROR_PIPE_SER_CTE 	| 4      	| Error en el pipe (Servidor->Cliente) 	|
-| ERROR_PIPE_CTE_SER 	| 5      	| Error en el pipe (Cliente->Servidor) 	|
+| ERROR_PIPE_SRVR_CLNT 	| 4      	| Error en el pipe (Servidor->Cliente) 	|
+| ERROR_PIPE_CLNT_SRVR 	| 5      	| Error en el pipe (Cliente->Servidor) 	|
 | ERROR_COMUNICACION 	| 6      	| Error de comunicación                	|
 
 _Lectura / Escritura:_

@@ -29,70 +29,46 @@
 // Header propias
 #include "server.h"
 #include "common.h"
-#include "data.h"
-#include "libro.h"
+#include "paquet.h"
+#include "book.h"
 
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
 {
-    char pipeCTE_SER[TAM_STRING],
-        archivoEntrada[TAM_STRING],
-        archivoSalida[TAM_STRING];
+    char pipeCLNT_SRVR[TAM_STRING],
+        inputFilename[TAM_STRING],
+        outputFilename[TAM_STRING];
 
     // Manejar los argumentos
-    manejarArgumentos(argc, argv, pipeCTE_SER, archivoEntrada, archivoSalida);
+    manejarArgumentos(argc, argv, pipeCLNT_SRVR, inputFilename, outputFilename);
+
+    // Verificar que el archivo de persistencia existe
+    if (access(outputFilename, F_OK) != 0)
+    {
+        perror("Servidor");
+        exit(ERROR_APERTURA_ARCHIVO);
+    }
+
+    // Lista con los libros
+    book_t booksDatabase[MAX_CANT_LIBROS];
 
     // Abrir la base de datos
-    FILE *archivo = fopen(archivoEntrada, "r");
-    if (archivo == NULL)
-    {
-        printf("No se puede abrir el archivo\n");
-        return ERROR_APERTURA_ARCHIVO;
-    }
+    int n_libros = leerDatabase(booksDatabase, inputFilename);
 
-    // Iniciar la comunicación
-    int pipeRead = iniciarComunicacion(pipeCTE_SER);
+    // Iniciar la comunicación (Escuchar a cualquier cliente)
+    int readPipe = iniciarComunicacion(pipeCLNT_SRVR);
 
-    // Lista de los clientes;
+    // Crear lista de los clientes (Memoria Dinámica)
     struct client_list clients;
-    clients.nClients = 0;
+    clients.n_clients = 0;
     clients.clientArray = (client_t *)malloc(sizeof(client_t));
 
-    // Leer cada libro
-    int n_libro = 0;
-    for (int i = 0; i < MAX_CANT_LIBROS; i++)
-    {
-        fscanf(archivo, "%[^,],%d,%d\n",
-               ejemplar[n_libro].nombre,
-               &ejemplar[n_libro].isbn,
-               &ejemplar[n_libro].num_ejemplar);
-
-        int aux = ejemplar[n_libro].num_ejemplar;
-
-        for (int j = 0; j < aux; j++)
-        {
-            if (j > 0)
-            {
-                strcpy(ejemplar[n_libro].nombre, ejemplar[n_libro - 1].nombre);
-                ejemplar[n_libro].isbn = ejemplar[n_libro - 1].isbn;
-                ejemplar[n_libro].num_ejemplar = ejemplar[n_libro - 1].num_ejemplar;
-            }
-
-            fscanf(archivo, "%d,%c,%s\n",
-                   &ejemplar[n_libro].libroEjem.numero,
-                   &ejemplar[n_libro].libroEjem.estado,
-                   ejemplar[n_libro].libroEjem.fecha);
-
-            n_libro++;
-        }
-    }
-
     // Paquete temporal donde se guarda lo recibido por el pipe
-    data_t package;
+    paquet_t package;
     int return_status;
 
     // Leer contenidos del pipe continuamente hasta que no hayan lectores
-    while (read(pipeRead, &package, sizeof(package)) != 0)
+    while (read(readPipe, &package, sizeof(package)) != 0)
     {
         // Interpretar el tipo de mensaje
         switch (package.type)
@@ -108,8 +84,9 @@ int main(int argc, char *argv[])
             }
             break;
 
-        case BOOK:                                                      //! Cuando se recibe un LIBRO
-            return_status = manejarLibros(&clients, package, ejemplar); // Aquí va la función que maneja los libros
+        case BOOK: //! Cuando se recibe un LIBRO
+                   // Aquí va la función que maneja los libros
+            return_status = manejarLibros(&clients, package, booksDatabase);
             if (return_status != SUCCESS_GENERIC)
             {
                 fprintf(stderr,
@@ -119,6 +96,7 @@ int main(int argc, char *argv[])
             }
             break;
 
+        case ERR: // Same as default
         default:
             fprintf(stderr, "Hubo un problema en la solicitud del cliente (%d)\n",
                     package.client);
@@ -126,23 +104,41 @@ int main(int argc, char *argv[])
         }
     }
 
+    //TODO: Hacer que espere un rato para ver si se vuelve a conectar un cliente
+
     // Notificación
     fprintf(stdout,
             "\nTodos los clientes se han desconectado, cerrando el servidor...\n");
-
-    // Cerrar el archivo
-    fclose(archivo);
 
     // Eliminar lista de clientes
     free(clients.clientArray);
 
     // Deshacer el pipe de Servidor
-    close(pipeRead);
-    unlink(pipeCTE_SER);
+    close(readPipe);
+    unlink(pipeCLNT_SRVR);
 
     // Notificación
     fprintf(stdout,
             "Se ha cerrado el pipe (Cliente->Servidor)...\n");
+
+    // El archivo de entrada ya está cerrado, no hace falta cerrarlo
+
+    // Actualizar la BD (Persistencia de la BD)
+    if (actualizarDatabase(outputFilename, booksDatabase, n_libros))
+    {
+        fprintf(stderr,
+                "Hubo un error en el archivo de persistencia de la BD,\
+se reintentará la escritura al archivo..\n");
+
+        if (actualizarDatabase(outputFilename, booksDatabase, n_libros))
+        {
+            fprintf(stderr,
+                    "El archivo de la base de datos puede estar dañado,\
+los cambios a la BD se mostrarán por pantalla:\n");
+
+            //TODO: Mostrar la BD
+        }
+    }
 
     // Terminar el proceso
     printf("\nServidor finaliza correctamente\n");
@@ -157,7 +153,7 @@ void mostrarUso(void)
 {
     fprintf(stdout,
             //"Uso: ./server -p pipeReceptor -f baseDeDatos -s archivoSalida\n");
-            "Uso: ./server -p pipeReceptor -f baseDeDatos\n");
+            "Uso: ./server -p pipeReceptor -f dataBase(Entrada)\n -s dataBase(Salida)");
     exit(ERROR_ARG_NOVAL);
 }
 
@@ -168,12 +164,7 @@ void manejarArgumentos(int argc,
                        char *fileOut)
 {
     // Todos los argumentos son obligatorios
-    /*
     if (argc != 7)
-        mostrarUso();
-    */
-
-    if (argc != 5)
         mostrarUso();
 
     // Filtrar los argumentos
@@ -215,7 +206,6 @@ void manejarArgumentos(int argc,
 
             break;
 
-            /*
         case 's':
             // Verificar si ya se usó el argOutumento
             if (argOut)
@@ -231,7 +221,6 @@ void manejarArgumentos(int argc,
             strcpy(fileOut, argv[2]);
 
             break;
-        */
 
         default:
             fprintf(stdout, "Argumento no válido: %s\n", argv[1]);
@@ -243,17 +232,122 @@ void manejarArgumentos(int argc,
     }
 }
 
+/* ----------------------- Manejo de la Base de Datos ----------------------- */
+
+int leerDatabase(book_t booksDatabase[], const char filename[])
+{
+    // Abrir el archivo para sólo lectura
+    FILE *databaseInput = fopen(filename, "r");
+    if (databaseInput == NULL)
+    {
+        perror("Server");
+        fprintf(stderr, "Archivo: %s\n", filename);
+        exit(ERROR_APERTURA_ARCHIVO);
+    }
+
+    // Leer cada libro de la DB
+    int n_libro = 0;
+    for (int i = 0; i < MAX_CANT_LIBROS; i++)
+    {
+        if (feof(databaseInput))
+            break;
+
+        fscanf(databaseInput, "%[^,],%d,%d\n",
+               booksDatabase[n_libro].name,
+               &booksDatabase[n_libro].ISBN,
+               &booksDatabase[n_libro].n_copies);
+
+        int aux = booksDatabase[n_libro].n_copies;
+
+        for (int j = 0; j < aux; j++)
+        {
+            if (j > 0)
+            {
+                strcpy(booksDatabase[n_libro].name, booksDatabase[n_libro - 1].name);
+                booksDatabase[n_libro].ISBN = booksDatabase[n_libro - 1].ISBN;
+                booksDatabase[n_libro].n_copies = booksDatabase[n_libro - 1].n_copies;
+            }
+
+            fscanf(databaseInput, "%d,%c,%s\n",
+                   &booksDatabase[n_libro].copyInfo.n_copy,
+                   &booksDatabase[n_libro].copyInfo.state,
+                   booksDatabase[n_libro].copyInfo.date);
+
+            n_libro++;
+        }
+    }
+
+    // Mostrar una notificación
+    printf("Database: %d ejemplares fueron importados correctamente!\n", n_libro);
+    return n_libro;
+}
+
+int actualizarDatabase(const char filename[],
+                       book_t booksDatabase[],
+                       int tam_database)
+{
+    // 1. Abrir el archivo y validar la syscall
+    FILE *database = fopen(filename, "w");
+    if (database == NULL)
+    {
+        perror("Server");
+        fprintf(stderr, "Archivo: %s\n", filename);
+        exit(ERROR_APERTURA_ARCHIVO);
+    }
+
+    // 2. Escribir BD al archivo
+
+    char buffer[TAM_STRING];
+    memset(buffer, 0, sizeof(buffer)); // Initialize buffer in 0
+
+    for (int i = 0; i < tam_database; i++)
+    {
+        // Check if header printing is necessary
+        if (strcmp(buffer, booksDatabase[i].name) != 0)
+        {
+            // Header printing is required
+            fprintf(database, "%s,%d,%d\n",
+                    booksDatabase[i].name, booksDatabase[i].ISBN,
+                    booksDatabase[i].n_copies);
+        }
+
+        // Print copy
+        fprintf(database, "%d,%c,%s",
+                booksDatabase[i].copyInfo.n_copy,
+                booksDatabase[i].copyInfo.state,
+                booksDatabase[i].copyInfo.date);
+
+        // Print endl
+        if (i < tam_database - 1)
+            fprintf(database, "\n");
+
+        // Save the buffer
+        strcpy(buffer, booksDatabase[i].name);
+    }
+
+    // 3. Cerrar la bd
+
+    if (fclose(database) < 0)
+    {
+        perror("Database");
+        return ERROR_CIERRE_ARCHIVO;
+    }
+
+    fprintf(stdout, "Database: Actualización satisfactoria\n");
+    return SUCCESS_GENERIC;
+}
+
 /* ----------------------- Protocolos de comunicación ----------------------- */
 
-int iniciarComunicacion(const char *pipeCTE_SER)
+int iniciarComunicacion(const char *pipeCLNT_SRVR)
 {
     // Crear el pipe (Cliente -> Servidor)
 
-    unlink(pipeCTE_SER);
-    if (mkfifo(pipeCTE_SER, PERMISOS_PIPE) < 0)
+    unlink(pipeCLNT_SRVR);
+    if (mkfifo(pipeCLNT_SRVR, PERMISOS_PIPE) < 0)
     {
         perror("Error de comunicación"); // Manejar Error
-        exit(ERROR_PIPE_SER_CTE);
+        exit(ERROR_PIPE_SRVR_CLNT);
     }
 
     // Notificación
@@ -261,11 +355,11 @@ int iniciarComunicacion(const char *pipeCTE_SER)
     fprintf(stdout, "Notificación: El servidor está en estado de espera...\n");
 
     // Abrir el pipe para lectura (Cliente->Servidor)
-    int pipe = open(pipeCTE_SER, O_RDONLY);
+    int pipe = open(pipeCLNT_SRVR, O_RDONLY);
     if (pipe < 0)
     {
         perror("Error de comunicación"); // Manejar Error
-        exit(ERROR_PIPE_CTE_SER);
+        exit(ERROR_PIPE_CLNT_SRVR);
     }
 
     // Notificación
@@ -274,14 +368,14 @@ int iniciarComunicacion(const char *pipeCTE_SER)
     return pipe;
 }
 
-int conectarCliente(struct client_list *clients, data_t package)
+int conectarCliente(struct client_list *clients, paquet_t package)
 {
     // Notificación
     fprintf(stdout, "\nUn nuevo cliente está iniciando una conexión\n");
 
     if (package.type != SIGNAL && package.data.signal.code != START_COM)
     {
-        fprintf(stderr, "Unexpected instruction\n");
+        fprintf(stderr, "UnexpeCLNTd instruction\n");
         return ERROR_COMUNICACION;
     }
 
@@ -291,7 +385,7 @@ int conectarCliente(struct client_list *clients, data_t package)
     if (pipefd < 0)
     {
         perror("Error en comunicación");
-        return ERROR_PIPE_SER_CTE;
+        return ERROR_PIPE_SRVR_CLNT;
     }
 
     // Notificación
@@ -317,7 +411,7 @@ int conectarCliente(struct client_list *clients, data_t package)
     //!7. Servidor envía una señal de confirmación a Cliente
 
     // Crear una señal
-    data_t toSent;
+    paquet_t toSent;
     toSent.type = SIGNAL;
     toSent.client = nuevo.clientPID;
     toSent.data.signal.code = SUCCEED_COM;
@@ -332,7 +426,7 @@ int conectarCliente(struct client_list *clients, data_t package)
         removerCliente(clients, nuevo.clientPID);
         close(pipefd);
 
-        return ERROR_PIPE_SER_CTE;
+        return ERROR_PIPE_SRVR_CLNT;
     }
 
     // Notificación
@@ -345,7 +439,7 @@ int conectarCliente(struct client_list *clients, data_t package)
     return SUCCESS_GENERIC;
 }
 
-int retirarCliente(struct client_list *clients, data_t package)
+int retirarCliente(struct client_list *clients, paquet_t package)
 {
     // Notificación
     fprintf(stdout, "\nEl cliente (%d) quiere abandonar la comunicación\n",
@@ -353,18 +447,18 @@ int retirarCliente(struct client_list *clients, data_t package)
 
     if (package.type != SIGNAL && package.data.signal.code != STOP_COM)
     {
-        fprintf(stderr, "Unexpected instruction\n");
+        fprintf(stderr, "UnexpeCLNTd instruction\n");
         return ERROR_COMUNICACION;
     }
 
     pid_t client = package.client;
-    int pipeSER_CTE = buscarCliente(clients, client);
+    int pipeSRVR_CLNT = buscarCliente(clients, client);
 
     //! 2. Servidor cierra la escritura del pipe (Servidor->Cliente)
-    if (close(pipeSER_CTE) < 0)
+    if (close(pipeSRVR_CLNT) < 0)
     {
         perror("Error");
-        return ERROR_PIPE_SER_CTE;
+        return ERROR_PIPE_SRVR_CLNT;
     }
 
     //!3. Servidor actualiza la lista de clientes
@@ -381,7 +475,7 @@ int retirarCliente(struct client_list *clients, data_t package)
     return SUCCESS_GENERIC;
 }
 
-int interpretarSenal(struct client_list *clients, data_t package)
+int interpretarSenal(struct client_list *clients, paquet_t package)
 {
     switch (package.data.signal.code)
     {
@@ -397,10 +491,10 @@ int interpretarSenal(struct client_list *clients, data_t package)
     return FAILURE_GENERIC;
 }
 
-data_t generarRespuesta(pid_t dest, int code, char *buffer)
+paquet_t generarRespuesta(pid_t dest, int code, char *buffer)
 {
     // Paquet creation
-    data_t reponse;
+    paquet_t reponse;
     reponse.client = dest;
     reponse.type = SIGNAL;
 
@@ -419,20 +513,20 @@ client_t crearCliente(int pipefd, pid_t clientpid, char *pipenom)
     client_t clienteNuevo;
     clienteNuevo.clientPID = clientpid;
     clienteNuevo.pipe = pipefd;
-    strcpy(clienteNuevo.pipeNom, pipenom);
+    strcpy(clienteNuevo.pipeFilename, pipenom);
     return clienteNuevo;
 }
 
 int guardarCliente(struct client_list *clients, client_t client)
 {
     // Add 1 to the client counter
-    int pos_newClient = clients->nClients++;
+    int pos_newClient = clients->n_clients++;
 
     // Realloc memory for the new client
     client_t *aux = // Hacer el vector más grande y guardarlo en un nuevo apuntador
         (client_t *)realloc(
             clients->clientArray,
-            sizeof(client_t) * clients->nClients);
+            sizeof(client_t) * clients->n_clients);
 
     // If allocation failed
     if (aux == NULL)
@@ -454,10 +548,10 @@ int guardarCliente(struct client_list *clients, client_t client)
 int removerCliente(struct client_list *clients, pid_t clientToRemove)
 {
     // Search for the client to remove and move it to the last position
-    if (clients->clientArray[clients->nClients - 1].clientPID != clientToRemove)
+    if (clients->clientArray[clients->n_clients - 1].clientPID != clientToRemove)
     {
         bool found = false;
-        for (int i = 0; i < clients->nClients; i++)
+        for (int i = 0; i < clients->n_clients; i++)
         {
             if (clients->clientArray[i].clientPID == clientToRemove)
             {
@@ -465,11 +559,11 @@ int removerCliente(struct client_list *clients, pid_t clientToRemove)
 
                 // Set variables
                 client_t toRemove = clients->clientArray[i];
-                client_t last = clients->clientArray[clients->nClients - 1];
+                client_t last = clients->clientArray[clients->n_clients - 1];
 
                 // Swap
                 clients->clientArray[i] = last;
-                clients->clientArray[clients->nClients - 1] = toRemove;
+                clients->clientArray[clients->n_clients - 1] = toRemove;
 
                 break;
             }
@@ -480,14 +574,14 @@ int removerCliente(struct client_list *clients, pid_t clientToRemove)
     }
 
     // Realloc the array
-    if (clients->nClients > 1)
-        clients->nClients--;
+    if (clients->n_clients > 1)
+        clients->n_clients--;
 
     // Realloc memory for the new client
     client_t *aux = // Hacer el vector más grande y guardarlo en un nuevo apuntador
         (client_t *)realloc(
             clients->clientArray,
-            sizeof(client_t) * clients->nClients);
+            sizeof(client_t) * clients->n_clients);
 
     // If allocation failed
     if (aux == NULL)
@@ -505,7 +599,7 @@ int removerCliente(struct client_list *clients, pid_t clientToRemove)
 
 int buscarCliente(struct client_list *clients, pid_t client)
 {
-    for (int i = 0; i < clients->nClients; i++)
+    for (int i = 0; i < clients->n_clients; i++)
         if (clients->clientArray[i].clientPID == client)
             return clients->clientArray[i].pipe;
 
@@ -516,8 +610,8 @@ int buscarCliente(struct client_list *clients, pid_t client)
 
 int manejarLibros(
     struct client_list *clients,
-    data_t package,
-    struct ejemplar ejemplar[])
+    paquet_t package,
+    book_t ejemplar[])
 {
     // Notificación
     printf("\nSe recibió una solicitud del cliente (%d)\n", package.client);
@@ -531,7 +625,7 @@ int manejarLibros(
         return ERROR_COMUNICACION;
     }
 
-    data_t respuesta;
+    paquet_t respuesta;
     char buffer[TAM_STRING];
 
     switch (package.data.libro.petition)
@@ -542,13 +636,13 @@ int manejarLibros(
         printf("La petición es de tipo: SOLICITAR\n");
 
         // 1. Buscar el libro
-        struct ejemplar libro = package.data.libro;
+        book_t libro = package.data.libro;
 
         bool encontrado = false;
         for (int i = 0; i < MAX_CANT_LIBROS; i++)
         {
-            if (ejemplar[i].isbn == libro.isbn &&
-                (strcmp(ejemplar[i].nombre, libro.nombre) == 0))
+            if (ejemplar[i].ISBN == libro.ISBN &&
+                (strcmp(ejemplar[i].name, libro.name) == 0))
             {
                 encontrado = true;
             }
@@ -568,25 +662,25 @@ int manejarLibros(
         }
 
         // Mostrar notificación
-        printf("El libro '%s' fue encontrado\n", libro.nombre);
+        printf("El libro '%s' fue encontrado\n", libro.name);
 
         // 2. Verificar si está disponible
 
         bool libroActualizado = false;
         for (int i = 0; i < MAX_CANT_LIBROS; i++)
         {
-            if (ejemplar[i].isbn == libro.isbn &&
-                (strcmp(ejemplar[i].nombre, libro.nombre) == 0) &&
-                ejemplar[i].libroEjem.estado == 'D')
+            if (ejemplar[i].ISBN == libro.ISBN &&
+                (strcmp(ejemplar[i].name, libro.name) == 0) &&
+                ejemplar[i].copyInfo.state == 'D')
             {
-                printf("El libro '%s' será actualizado\n", libro.nombre);
+                printf("El libro '%s' será actualizado\n", libro.name);
 
                 // 3. Modificar el estado del libro
 
                 // Actualizar libro
                 // Actualizar su estado
                 libroActualizado = true;
-                ejemplar[i].libroEjem.estado = 'P';
+                ejemplar[i].copyInfo.state = 'P';
 
                 // Actualizar su fecha //! Tiene que ser dentro de 1 semana
                 char fecha[TAM_STRING];
@@ -607,13 +701,13 @@ int manejarLibros(
 
                 printf("IMPORTANTE: El libro está prestado hasta: %s\n", fecha);
 
-                strcpy(ejemplar[i].libroEjem.fecha, fecha);
+                strcpy(ejemplar[i].copyInfo.date, fecha);
                 strcpy(buffer, fecha);
 
                 // Añadir qué ejemplar fue el que se prestó
                 //ADVERTENCIA: como ya no se necesita fecha la usamos de string auxiliar
                 memset(fecha, 0, sizeof(fecha));
-                sprintf(fecha, " (Ejemplar #%d)", ejemplar[i].libroEjem.numero);
+                sprintf(fecha, " (Ejemplar #%d)", ejemplar[i].copyInfo.n_copy);
                 strcat(buffer, fecha);
 
                 break;
@@ -655,13 +749,13 @@ int manejarLibros(
         printf("La petición es de tipo: RENOVAR\n");
 
         // 1. Buscar el libro
-        struct ejemplar libro = package.data.libro;
+        book_t libro = package.data.libro;
 
         bool encontrado = false;
         for (int i = 0; i < MAX_CANT_LIBROS; i++)
         {
-            if (ejemplar[i].isbn == libro.isbn &&
-                (strcmp(ejemplar[i].nombre, libro.nombre) == 0))
+            if (ejemplar[i].ISBN == libro.ISBN &&
+                (strcmp(ejemplar[i].name, libro.name) == 0))
             {
                 encontrado = true;
             }
@@ -681,25 +775,25 @@ int manejarLibros(
         }
 
         // Mostrar notificación
-        printf("El libro '%s' fue encontrado\n", libro.nombre);
+        printf("El libro '%s' fue encontrado\n", libro.name);
 
         // 2. Verificar si está //? OCUPADO
         bool libroActualizado = false;
         for (int i = 0; i < MAX_CANT_LIBROS; i++)
         {
-            if (ejemplar[i].isbn == libro.isbn &&
-                (strcmp(ejemplar[i].nombre, libro.nombre) == 0) &&
-                ejemplar[i].libroEjem.estado == 'P' && //? P de PRESTADO
-                ejemplar[i].libroEjem.numero == libro.libroEjem.numero)
+            if (ejemplar[i].ISBN == libro.ISBN &&
+                (strcmp(ejemplar[i].name, libro.name) == 0) &&
+                ejemplar[i].copyInfo.state == 'P' && //? P de PRESTADO
+                ejemplar[i].copyInfo.n_copy == libro.copyInfo.n_copy)
             {
-                printf("El libro '%s' será actualizado\n", libro.nombre);
+                printf("El libro '%s' será actualizado\n", libro.name);
 
                 // 3. Modificar el estado del libro
 
                 // Actualizar libro
                 // Actualizar su estado
                 libroActualizado = true;
-                ejemplar[i].libroEjem.estado = 'P'; //? Se deja en PRESTADO
+                ejemplar[i].copyInfo.state = 'P'; //? Se deja en PRESTADO
 
                 // Actualizar su fecha
                 //! A LA FECHA DE DEVOLUCIÓN QUE SE TENÍA se le suma 1 semana
@@ -714,7 +808,7 @@ int manejarLibros(
                 fechaLibro = localtime(&t);
 
                 //? Obtener fecha del libro
-                strcpy(fecha, ejemplar[i].libroEjem.fecha);
+                strcpy(fecha, ejemplar[i].copyInfo.date);
                 strptime(fecha, "%d-%m-%Y", fechaLibro);
 
                 //? Añadirle 1 semana
@@ -744,7 +838,7 @@ int manejarLibros(
 
                 printf("IMPORTANTE: El libro está prestado hasta: %s\n", fecha);
 
-                strcpy(ejemplar[i].libroEjem.fecha, fecha);
+                strcpy(ejemplar[i].copyInfo.date, fecha);
 
                 if (!tarde)
                     strcpy(buffer, fecha);
@@ -790,13 +884,13 @@ int manejarLibros(
         printf("La petición es de tipo: DEVOLVER\n");
 
         // 1. Buscar el libro
-        struct ejemplar libro = package.data.libro;
+        book_t libro = package.data.libro;
 
         bool encontrado = false;
         for (int i = 0; i < MAX_CANT_LIBROS; i++)
         {
-            if (ejemplar[i].isbn == libro.isbn &&
-                (strcmp(ejemplar[i].nombre, libro.nombre) == 0))
+            if (ejemplar[i].ISBN == libro.ISBN &&
+                (strcmp(ejemplar[i].name, libro.name) == 0))
             {
                 encontrado = true;
             }
@@ -816,25 +910,25 @@ int manejarLibros(
         }
 
         // Mostrar notificación
-        printf("El libro '%s' fue encontrado\n", libro.nombre);
+        printf("El libro '%s' fue encontrado\n", libro.name);
 
         // 2. Verificar si está //? OCUPADO
         bool libroActualizado = false;
         for (int i = 0; i < MAX_CANT_LIBROS; i++)
         {
-            if (ejemplar[i].isbn == libro.isbn &&
-                (strcmp(ejemplar[i].nombre, libro.nombre) == 0) &&
-                ejemplar[i].libroEjem.estado == 'P' && //? P de PRESTADO
-                ejemplar[i].libroEjem.numero == libro.libroEjem.numero)
+            if (ejemplar[i].ISBN == libro.ISBN &&
+                (strcmp(ejemplar[i].name, libro.name) == 0) &&
+                ejemplar[i].copyInfo.state == 'P' && //? P de PRESTADO
+                ejemplar[i].copyInfo.n_copy == libro.copyInfo.n_copy)
             {
-                printf("El libro '%s' será actualizado\n", libro.nombre);
+                printf("El libro '%s' será actualizado\n", libro.name);
 
                 // 3. Modificar el estado del libro
 
                 // Actualizar libro
                 // Actualizar su estado
                 libroActualizado = true;
-                ejemplar[i].libroEjem.estado = 'D'; //? Se pone disponible
+                ejemplar[i].copyInfo.state = 'D'; //? Se pone disponible
 
                 // Actualizar su fecha //? FECHA ACTUAL (Devolución)
                 char fecha[TAM_STRING];
@@ -850,7 +944,7 @@ int manejarLibros(
                 //? INFORMACION
                 printf("IMPORTANTE: El libro fue devuelto en: %s\n", fecha);
 
-                strcpy(ejemplar[i].libroEjem.fecha, fecha);
+                strcpy(ejemplar[i].copyInfo.date, fecha);
                 strcpy(buffer, fecha);
                 break;
             }
@@ -891,13 +985,13 @@ int manejarLibros(
         printf("La petición es de tipo: BUSCAR\n");
 
         // 1. Buscar el libro
-        struct ejemplar libro = package.data.libro;
+        book_t libro = package.data.libro;
 
         bool encontrado = false;
         for (int i = 0; i < MAX_CANT_LIBROS; i++)
         {
-            if (ejemplar[i].isbn == libro.isbn &&
-                (strcmp(ejemplar[i].nombre, libro.nombre) == 0))
+            if (ejemplar[i].ISBN == libro.ISBN &&
+                (strcmp(ejemplar[i].name, libro.name) == 0))
             {
                 encontrado = true;
 
@@ -912,7 +1006,7 @@ int manejarLibros(
                 }
 
                 // Mostrar notificación
-                printf("El libro '%s' fue encontrado\n", libro.nombre);
+                printf("El libro '%s' fue encontrado\n", libro.name);
 
                 return SUCCESS_GENERIC;
             }
@@ -930,7 +1024,7 @@ int manejarLibros(
         return ERROR_SOLICITUD;
 
         // Mostrar notificación
-        fprintf(stderr, "El libro '%s' NO fue encontrado\n", libro.nombre);
+        fprintf(stderr, "El libro '%s' NO fue encontrado\n", libro.name);
     }
     break;
 

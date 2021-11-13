@@ -8,7 +8,7 @@ BLD_DIR = ./build
 BIN_DIR = ./bin
 DOC_DIR = ./docs/doxy
 
-COMMON	= $(SRC_DIR)/common.h $(SRC_DIR)/data.h
+COMMON	= $(SRC_DIR)/common.h $(SRC_DIR)/paquet.h $(SRC_DIR)/book.h
 
 all: pre main
 

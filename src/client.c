@@ -27,39 +27,47 @@
 // Header propias
 #include "common.h"
 #include "client.h"
-#include "data.h"
+#include "paquet.h"
+#include "book.h"
 
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
 {
     // Manejar los argumentos
-    char nombreArchivo[TAM_STRING], // Nombre archivo
-        pipeCTE_SER[TAM_STRING],    // Nombre pipe (Cliente -> Servidor)
-        pipeSER_CTE[TAM_STRING];    // Nombre pipe (Servidor -> Cliente)
+    char requestFilename[TAM_STRING], // Nombre archivo
+        pipeCLNT_SRVR[TAM_STRING],    // Nombre pipe (Cliente -> Servidor)
+        pipeSRVR_CLNT[TAM_STRING];    // Nombre pipe (Servidor -> Cliente)
 
-    int pipe[2]; // FD's de los pipes
-
-    char nombreLibro[TAM_STRING];
-    memset(nombreLibro, 0, sizeof(nombreLibro));
-
-    char ISBNstr[TAM_STRING];
-    memset(ISBNstr, 0, sizeof(ISBNstr));
-
-    int n_ejemplar = 0;
+    //? La declaración de estas variables se hace antes de la validación porque
+    //? la función 'manejarArgumentos' necesita una referencia a estas variables
+    //? como parámetro
 
     bool archivoUsado; // Flag para saber si un archivo está siendo usado
-    archivoUsado = manejarArgumentos(argc, argv, pipeCTE_SER, nombreArchivo);
-    FILE *archivo = NULL;
+    archivoUsado = manejarArgumentos(argc, argv, pipeCLNT_SRVR, requestFilename);
+
+    // Otras variables
+    int fd_pipes[2]; // FD's de los pipes
+
+    char nombreLibro[TAM_STRING]; // Buffer para Nombre del libro
+    memset(nombreLibro, 0, sizeof(nombreLibro));
+
+    char ISBNstr[TAM_STRING]; // Buffer un ISBN del libro
+    memset(ISBNstr, 0, sizeof(ISBNstr));
+
+    // Archivo con las peticiones
+    FILE *requestsFile = NULL;
 
     // Iniciar la comunicación con el servidor
-    iniciarComunicacion(pipeCTE_SER, pipeSER_CTE, pipe);
+    iniciarComunicacion(pipeCLNT_SRVR, pipeSRVR_CLNT, fd_pipes);
 
     // Manejar el archivo
     if (archivoUsado)
-    { // Si utilizó el archivo
+    {
+        // Si utilizó el archivo
+
         // Abrir el archivo
-        archivo = fopen(nombreArchivo, "r");
-        if (archivo == NULL)
+        requestsFile = fopen(requestFilename, "r");
+        if (requestsFile == NULL)
         {
             perror("Archivo");
             return ERROR_APERTURA_ARCHIVO;
@@ -67,32 +75,33 @@ int main(int argc, char *argv[])
 
         //1. Leer el archivo
         struct peticion_t peticiones[MAX_CANT_LIBROS];
-        struct ejemplar libro;
+        book_t libro;
         int peticionesLeidas = 0;
+
         for (int i = 0; i < MAX_CANT_LIBROS; i++)
         {
-            fscanf(archivo, "%c, %[^,],%d\n",
-                   &peticiones[i].peticion,
-                   peticiones[i].nombre,
-                   &peticiones[i].isbn);
+            fscanf(requestsFile, "%c, %[^,],%d\n",
+                   &peticiones[i].request,
+                   peticiones[i].bookName,
+                   &peticiones[i].ISBN);
 
             peticionesLeidas++;
-            if (feof(archivo))
+            if (feof(requestsFile))
                 break;
         }
 
         // Mandar al servidor todas las peticiones
         for (int i = 0; i < peticionesLeidas; i++)
         {
-            switch (peticiones[i].peticion)
+            switch (peticiones[i].request)
             {
             case 'P': // Prestar
                 printf("\nIniciando préstamo del libro\n");
                 if (
                     prestarLibro(
-                        pipe,
-                        peticiones[i].nombre,
-                        peticiones[i].isbn) != SUCCESS_GENERIC)
+                        fd_pipes,
+                        peticiones[i].bookName,
+                        peticiones[i].ISBN) != SUCCESS_GENERIC)
                     printf("Operación fallida\n");
                 else
                     printf("Operación exitosa\n");
@@ -101,9 +110,9 @@ int main(int argc, char *argv[])
             case 'R': // Renovar
                 printf("\nIniciando renovación del libro\n");
                 // Hay que intentar renovar por cada libro
-                libro = buscarLibro(pipe,
-                                    peticiones[i].nombre,
-                                    peticiones[i].isbn);
+                libro = buscarLibro(fd_pipes,
+                                    peticiones[i].bookName,
+                                    peticiones[i].ISBN);
 
                 if (libro.petition == BUSCAR) // Si el libro no existe
                 {
@@ -112,11 +121,11 @@ int main(int argc, char *argv[])
                 }
 
                 bool renovado = false;
-                for (int j = 0; j < libro.num_ejemplar; j++)
+                for (int j = 0; j < libro.n_copies; j++)
                 {
                     printf("Intentando renovar ejemplar #%d", j);
                     // Por cada ejemplar hacer el intento de renovar
-                    if (renovarLibro(pipe, libro.nombre, libro.isbn, j) ==
+                    if (renovarLibro(fd_pipes, libro.name, libro.ISBN, j) ==
                         SUCCESS_GENERIC)
                     {
                         renovado = true; // Al menos un libro fue exitoso
@@ -135,9 +144,9 @@ int main(int argc, char *argv[])
             case 'D': // Devolver un libro
                 printf("\nIniciando devolución del libro\n");
                 // Hay que intentar renovar por cada libro
-                libro = buscarLibro(pipe,
-                                    peticiones[i].nombre,
-                                    peticiones[i].isbn);
+                libro = buscarLibro(fd_pipes,
+                                    peticiones[i].bookName,
+                                    peticiones[i].ISBN);
 
                 if (libro.petition == BUSCAR) // Si el libro no existe
                 {
@@ -146,11 +155,11 @@ int main(int argc, char *argv[])
                 }
 
                 bool devuelto = false;
-                for (int j = 0; j < libro.num_ejemplar; j++)
+                for (int j = 0; j < libro.n_copies; j++)
                 {
                     printf("Intentando devolver ejemplar #%d", j);
                     // Por cada ejemplar hacer el intento de renovar
-                    if (devolverLibro(pipe, libro.nombre, libro.isbn, j) ==
+                    if (devolverLibro(fd_pipes, libro.name, libro.ISBN, j) ==
                         SUCCESS_GENERIC)
                     {
                         devuelto = true; // Al menos un libro fue exitoso
@@ -173,13 +182,17 @@ int main(int argc, char *argv[])
     }
 
     else
-    { // Si NO utilizó el archivo // Mostrar menú
+    {
+        // Si no utilizó el archivo
+        //! Mostrar menú
 
-        int sel;
+        // Variables del menú
+        int sel, n_ejemplar = 0;
+
         do
         {
             printf("\n @ Menú Principal @\n");
-            // Mostrar optciones
+            // Mostrar opciones
             printf("1. Pedir un libro prestado\n");
             printf("2. Renovar un libro\n");
             printf("3. Devolver un libro\n");
@@ -205,7 +218,7 @@ int main(int argc, char *argv[])
                 printf("Digite el ISBN del libro: ");
                 fgets(ISBNstr, sizeof(ISBNstr), stdin);
 
-                if (prestarLibro(pipe, nombreLibro, atoi(ISBNstr)) != SUCCESS_GENERIC)
+                if (prestarLibro(fd_pipes, nombreLibro, atoi(ISBNstr)) != SUCCESS_GENERIC)
                     printf("Operación fallida\n");
                 else
                     printf("Operación exitosa\n");
@@ -225,7 +238,7 @@ int main(int argc, char *argv[])
                 scanf("%d", &n_ejemplar);
                 (void)getchar();
 
-                if (renovarLibro(pipe, nombreLibro, atoi(ISBNstr), n_ejemplar) !=
+                if (renovarLibro(fd_pipes, nombreLibro, atoi(ISBNstr), n_ejemplar) !=
                     SUCCESS_GENERIC)
                     printf("Operación fallida\n");
                 else
@@ -246,7 +259,7 @@ int main(int argc, char *argv[])
                 scanf("%d", &n_ejemplar);
                 (void)getchar();
 
-                if (devolverLibro(pipe, nombreLibro, atoi(ISBNstr), n_ejemplar) !=
+                if (devolverLibro(fd_pipes, nombreLibro, atoi(ISBNstr), n_ejemplar) !=
                     SUCCESS_GENERIC)
                     printf("Operación fallida\n");
                 else
@@ -264,11 +277,14 @@ int main(int argc, char *argv[])
 
     // Cerrar archivos abiertos
     if (archivoUsado)
-        if (fclose(archivo) < 0)
+        if (fclose(requestsFile) < 0)
+        {
+            perror("File");
             return ERROR_CIERRE_ARCHIVO;
+        }
 
     // Cerrar la comunicacion
-    detenerComunicacion(pipe, pipeSER_CTE);
+    detenerComunicacion(fd_pipes, pipeSRVR_CLNT);
 
     // Notificar
     fprintf(stdout, "\nCliente finaliza correctamente\n");
@@ -375,8 +391,8 @@ bool manejarArgumentos(int argc, char *argv[], char *pipeNom, char *fileNom)
 // Protocolos de comunicación
 
 void iniciarComunicacion(
-    const char *pipeCTE_SER,
-    char *pipeSER_CTE,
+    const char *pipeCLNT_SRVR,
+    char *pipeSRVR_CLNT,
     int *pipe)
 {
     // Notificar
@@ -388,55 +404,55 @@ void iniciarComunicacion(
 
     //!1 Cliente abre el pipe (Cliente->Servidor) para ESCRITURA
 
-    pipe[WRITE] = open(pipeCTE_SER, O_WRONLY);
+    pipe[WRITE] = open(pipeCLNT_SRVR, O_WRONLY);
     if (pipe[WRITE] < 0)
     {
         perror("Error de comunicación con el servidor"); // Manejar error
-        exit(ERROR_PIPE_SER_CTE);
+        exit(ERROR_PIPE_SRVR_CLNT);
     }
 
     // Notificar
     fprintf(stdout, "Notificación: El pipe (Cliente->Servidor) fue abierto\n");
 
     //!2 Cliente crea un pipe (Servidor->Cliente)
-    /* Crear el nombre del pipe, para esto se toma el macro PIPE_NOM_CTE y se
+    /* Crear el nombre del pipe, para esto se toma el macro PIPE_NOM_CLNT y se
        le concatena el pid del proceso Cliente quien lo crea */
 
     pid_t client_pid = getpid();
 
-    // 2.1 Borrar los contenidos actuales de pipeSER_CTE
-    memset(pipeSER_CTE, 0, sizeof(pipeSER_CTE));
+    // 2.1 Borrar los contenidos actuales de pipeSRVR_CLNT
+    memset(pipeSRVR_CLNT, 0, sizeof(pipeSRVR_CLNT));
 
     // 2.2 Copiar la macro a la variable
-    strcpy(pipeSER_CTE, PIPE_NOM_CTE);
+    strcpy(pipeSRVR_CLNT, PIPE_TITLE_CLNT);
 
     // 2.3 Concatenar el pid
     char buffer[TAM_STRING];
     sprintf(buffer, "%d", client_pid);
-    strcat(pipeSER_CTE, buffer);
+    strcat(pipeSRVR_CLNT, buffer);
 
     // Ya se tiene el nombre disponible para crear el pipe de LECTURA
 
     // Crear el pipe nominal
-    unlink(pipeSER_CTE);
-    if (mkfifo(pipeSER_CTE, PERMISOS_PIPE) < 0)
+    unlink(pipeSRVR_CLNT);
+    if (mkfifo(pipeSRVR_CLNT, PERMISOS_PIPE) < 0)
     {
         perror("Error de conexión con el servidor"); // Manejar Error
 
         // Cerrar recursos abiertos
         close(pipe[WRITE]);
-        exit(ERROR_PIPE_CTE_SER);
+        exit(ERROR_PIPE_CLNT_SRVR);
     }
 
     //Notificación
     fprintf(stdout, "Notificación: El pipe (Servidor->Cliente) fue creado\n");
 
     //!5 Cliente envía a Servidor el nombre del pipe (Servidor->Cliente)
-    data_t com;                                  // Estructura a enviar por el pipe
-    com.client = client_pid;                     // PID quien envía
-    com.type = SIGNAL;                           // Tipo de dato
-    com.data.signal.code = START_COM;            // Tipo de señal
-    strcpy(com.data.signal.buffer, pipeSER_CTE); // Nombre del pipe
+    paquet_t com;                                  // Estructura a enviar por el pipe
+    com.client = client_pid;                       // PID quien envía
+    com.type = SIGNAL;                             // Tipo de dato
+    com.data.signal.code = START_COM;              // Tipo de señal
+    strcpy(com.data.signal.buffer, pipeSRVR_CLNT); // Nombre del pipe
 
     // Intentar enviar los datos
     int aux = 0, attemps = 0;
@@ -457,7 +473,7 @@ void iniciarComunicacion(
                 // Cerrar los archivos abiertos
                 close(pipe[READ]);
                 close(pipe[WRITE]);
-                unlink(pipeSER_CTE);
+                unlink(pipeSRVR_CLNT);
 
                 // Terminar
                 exit(ERROR_ESCRITURA);
@@ -476,15 +492,15 @@ void iniciarComunicacion(
     //? Este pipe se abre en modo O_NONBLOCK porque puede
     //? recibir confirmaciones asíncronas
 
-    pipe[READ] = open(pipeSER_CTE, O_RDONLY);
+    pipe[READ] = open(pipeSRVR_CLNT, O_RDONLY);
     if (pipe[READ] < 0)
     {
         perror("Error de conexión con el servidor"); // Manejar Error
 
         // Cerrar recursos abiertos
         close(pipe[WRITE]);
-        unlink(pipeSER_CTE);
-        exit(ERROR_PIPE_CTE_SER);
+        unlink(pipeSRVR_CLNT);
+        exit(ERROR_PIPE_CLNT_SRVR);
     }
 
     //Notificación
@@ -500,7 +516,7 @@ void iniciarComunicacion(
     // Notificación
     fprintf(stdout, "Notificación: Esperando respuesta del Servidor\n");
 
-    data_t expect; // Estructura que se espera
+    paquet_t expect; // Estructura que se espera
     while (read(pipe[READ], &expect, sizeof(expect)) == 0)
     {
         // Obtener el momento actual
@@ -516,7 +532,7 @@ void iniciarComunicacion(
             // Cerrar los recursos abiertos
             close(pipe[READ]);
             close(pipe[WRITE]);
-            unlink(pipeSER_CTE);
+            unlink(pipeSRVR_CLNT);
 
             exit(ERROR_COMUNICACION);
         }
@@ -528,7 +544,7 @@ void iniciarComunicacion(
         // Cerrar los recursos abiertos
         close(pipe[READ]);
         close(pipe[WRITE]);
-        unlink(pipeSER_CTE);
+        unlink(pipeSRVR_CLNT);
 
         // Terminar el programa
         perror("Comunicacion");
@@ -548,13 +564,13 @@ void iniciarComunicacion(
     fprintf(stderr, "Respuesta inesperada: %d\n", expect.data.signal.code);
 }
 
-static void detenerComunicacion(int *pipe, char *pipeSER_CTE)
+static void detenerComunicacion(int *pipe, char *pipeSRVR_CLNT)
 {
     // Notificar
     fprintf(stdout, "\n(%d) Intentando detener conexión\n", getpid());
 
     //!1. Cliente manda una petición de terminación de comunicación al Servidor
-    data_t packet = generarSenal(getpid(), STOP_COM, NULL);
+    paquet_t packet = generarSenal(getpid(), STOP_COM, NULL);
 
     // Notificar
     fprintf(stdout, "Intentando cerrar comunicación\n");
@@ -564,7 +580,7 @@ static void detenerComunicacion(int *pipe, char *pipeSER_CTE)
     // NO se termina el proceso, para que así elimine el pipe
     // Sólo se intenta escribir indeterminadamente
 
-    data_t tmp;
+    paquet_t tmp;
     //!4. Cliente espera a que se cierre el pipe
     while (read(pipe[READ], &tmp, sizeof(tmp)) != 0)
         ;
@@ -578,7 +594,7 @@ static void detenerComunicacion(int *pipe, char *pipeSER_CTE)
     fprintf(stdout, "Se cerró el pipe (Servidor->Cliente)\n");
 
     //!6. Cliente elimina el pipe (Servidor->Cliente)
-    unlink(pipeSER_CTE);
+    unlink(pipeSRVR_CLNT);
     // Notificar
     fprintf(stdout, "Se eliminó el pipe (Servidor->Cliente)\n");
 
@@ -593,10 +609,10 @@ static void detenerComunicacion(int *pipe, char *pipeSER_CTE)
     fprintf(stdout, "Comunicación terminada\n");
 }
 
-data_t generarSenal(pid_t dest, int code, char *buffer)
+paquet_t generarSenal(pid_t dest, int code, char *buffer)
 {
     // Paquet creation
-    data_t packet;
+    paquet_t packet;
     packet.client = dest;
     packet.type = SIGNAL;
 
@@ -615,13 +631,13 @@ int prestarLibro(int *pipes, const char *nombreLibro, int ISBN)
     printf("\nSe está enviando una solicitud al servidor\n");
 
     // Libro a enviar al servidor
-    struct ejemplar libro;
-    libro.isbn = ISBN;
-    strcpy(libro.nombre, nombreLibro);
+    book_t libro;
+    libro.ISBN = ISBN;
+    strcpy(libro.name, nombreLibro);
     libro.petition = SOLICITAR;
 
     // Crear el paquete
-    data_t paquete;
+    paquet_t paquete;
     paquete.type = BOOK;
     paquete.client = getpid();
     paquete.data.libro = libro;
@@ -634,7 +650,7 @@ int prestarLibro(int *pipes, const char *nombreLibro, int ISBN)
     }
 
     // ... Esperar una respuesta positiva
-    data_t respuesta;
+    paquet_t respuesta;
     if (read(pipes[READ], &respuesta, sizeof(respuesta)) < 0)
     {
         perror("Error");
@@ -659,14 +675,14 @@ int devolverLibro(int *pipes, const char *nombreLibro, int ISBN, int ejemplar)
     printf("\nSe está enviando una solicitud al servidor\n");
 
     // Libro a enviar al servidor
-    struct ejemplar libro;
-    libro.isbn = ISBN;
-    strcpy(libro.nombre, nombreLibro);
-    libro.petition = DEVOLVER;         //! DEVOLVER
-    libro.libroEjem.numero = ejemplar; // Numero del ejemplar
+    book_t libro;
+    libro.ISBN = ISBN;
+    strcpy(libro.name, nombreLibro);
+    libro.petition = DEVOLVER;        //! DEVOLVER
+    libro.copyInfo.n_copy = ejemplar; // Numero del ejemplar
 
     // Crear el paquete
-    data_t paquete;
+    paquet_t paquete;
     paquete.type = BOOK;
     paquete.client = getpid();
     paquete.data.libro = libro;
@@ -679,7 +695,7 @@ int devolverLibro(int *pipes, const char *nombreLibro, int ISBN, int ejemplar)
     }
 
     // ... Esperar una respuesta positiva
-    data_t respuesta;
+    paquet_t respuesta;
     if (read(pipes[READ], &respuesta, sizeof(respuesta)) < 0)
     {
         perror("Error");
@@ -694,7 +710,7 @@ int devolverLibro(int *pipes, const char *nombreLibro, int ISBN, int ejemplar)
 
     printf("La solicitud fue procesada adecuadamente\n");
     printf("El libro: '%s' fue devuelto correctamente en: %s\n",
-           libro.nombre,
+           libro.name,
            respuesta.data.signal.buffer);
 
     return SUCCESS_GENERIC;
@@ -709,14 +725,14 @@ int renovarLibro(int *pipes,
     printf("\nSe está enviando una solicitud al servidor\n");
 
     // Libro a enviar al servidor
-    struct ejemplar libro;
-    libro.isbn = ISBN;
-    strcpy(libro.nombre, nombreLibro);
-    libro.petition = RENOVAR;          //! DEVOLVER
-    libro.libroEjem.numero = ejemplar; // Numero del ejemplar
+    book_t libro;
+    libro.ISBN = ISBN;
+    strcpy(libro.name, nombreLibro);
+    libro.petition = RENOVAR;         //! DEVOLVER
+    libro.copyInfo.n_copy = ejemplar; // Numero del ejemplar
 
     // Crear el paquete
-    data_t paquete;
+    paquet_t paquete;
     paquete.type = BOOK;
     paquete.client = getpid();
     paquete.data.libro = libro;
@@ -729,7 +745,7 @@ int renovarLibro(int *pipes,
     }
 
     // ... Esperar una respuesta positiva
-    data_t respuesta;
+    paquet_t respuesta;
     if (read(pipes[READ], &respuesta, sizeof(respuesta)) < 0)
     {
         perror("Error");
@@ -743,26 +759,26 @@ int renovarLibro(int *pipes,
     }
 
     printf("La solicitud fue procesada adecuadamente\n");
-    printf("El libro '%s' fue renovado\n", libro.nombre);
+    printf("El libro '%s' fue renovado\n", libro.name);
     printf("La nueva fecha de entrega es: %s\n",
            respuesta.data.signal.buffer);
 
     return SUCCESS_GENERIC;
 }
 
-struct ejemplar buscarLibro(int *pipes, const char *nombre, int ISBN)
+book_t buscarLibro(int *pipes, const char *nombre, int ISBN)
 {
     // Notificación
     printf("\nSe está enviando una solicitud al servidor\n");
 
     // Libro a enviar al servidor
-    struct ejemplar libro1;
-    libro1.isbn = ISBN;
-    strcpy(libro1.nombre, nombre);
+    book_t libro1;
+    libro1.ISBN = ISBN;
+    strcpy(libro1.name, nombre);
     libro1.petition = BUSCAR;
 
     // Crear el paquete
-    data_t paquete;
+    paquet_t paquete;
     paquete.type = BOOK;
     paquete.client = getpid();
     paquete.data.libro = libro1;
@@ -774,7 +790,7 @@ struct ejemplar buscarLibro(int *pipes, const char *nombre, int ISBN)
     }
 
     // ... Esperar una respuesta positiva
-    data_t respuesta;
+    paquet_t respuesta;
     if (read(pipes[READ], &respuesta, sizeof(respuesta)) < 0)
     {
         perror("Error");
@@ -786,11 +802,11 @@ struct ejemplar buscarLibro(int *pipes, const char *nombre, int ISBN)
         return libro1;
     }
 
-    struct ejemplar libro;
-    libro.isbn = respuesta.data.libro.isbn;
-    libro.libroEjem = respuesta.data.libro.libroEjem;
-    strcpy(libro.nombre, respuesta.data.libro.nombre);
-    libro.num_ejemplar = respuesta.data.libro.num_ejemplar;
+    book_t libro;
+    libro.ISBN = respuesta.data.libro.ISBN;
+    libro.copyInfo = respuesta.data.libro.copyInfo;
+    strcpy(libro.name, respuesta.data.libro.name);
+    libro.n_copies = respuesta.data.libro.n_copies;
     libro.petition = SOLICITAR;
 
     printf("La solicitud fue procesada\n\n");
