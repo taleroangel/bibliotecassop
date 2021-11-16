@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include "common.h"
 #include "paquet.h"
+#include "buffer.h"
 
 /* ----------------------------- Definiciones ----------------------------- */
 
@@ -99,8 +100,8 @@ int leerDatabase(book_t booksDatabase[], const char filename[]);
  * @return Return error
  */
 int actualizarDatabase(const char filename[],
-                        book_t booksDatabase[],
-                        int tam_database);
+                       book_t booksDatabase[],
+                       int tam_database);
 
 /* ----------------------- Protocolos de comunicación ----------------------- */
 
@@ -200,5 +201,30 @@ int manejarLibros(
     struct client_list *clients,
     paquet_t package,
     book_t ejemplar[]);
+
+/* ---------------- Manejo de concurrencia y buffer interno ---------------- */
+
+/**
+ * @struct arg_buffer
+ * Argumentos de la funcoón manejador buffer
+ * @param buffer Arreglo buffer
+ * @param client_list Lista con los clientes
+ * @param booksDatabase Base de datos con los libros
+ */
+struct arg_buffer
+{
+    buffer_t *buffer;
+    struct client_list *clients;
+    book_t *booksDatabase;
+};
+
+/**
+ * @brief Función encargada de manejar las peticiones, se tiene que llamar desde
+ * un hilo
+ * 
+ * @param params parametros de la función
+ * @return void* Nada
+ */
+void *manejadorBuffer(struct arg_buffer *params);
 
 #endif // __SERVER_H__

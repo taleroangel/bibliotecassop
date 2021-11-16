@@ -25,12 +25,19 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <pthread.h>
+#include <semaphore.h>
 
 // Header propias
 #include "server.h"
 #include "common.h"
 #include "paquet.h"
 #include "book.h"
+#include "buffer.h"
+
+/* -------------------- Variables globales (Semáforos) -------------------- */
+sem_t semaforo_bd = {0};
+sem_t semaforo_clientes = {0};
 
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
@@ -43,6 +50,7 @@ int main(int argc, char *argv[])
     manejarArgumentos(argc, argv, pipeCLNT_SRVR, inputFilename, outputFilename);
 
     // Verificar que el archivo de persistencia existe
+    //TODO: Si no existe, crearlo
     if (access(outputFilename, F_OK) != 0)
     {
         perror("Servidor");
@@ -67,45 +75,55 @@ int main(int argc, char *argv[])
     paquet_t package;
     int return_status;
 
+    //! Buffer interno con las peticiones
+    buffer_t buffer_interno;
+    buffer_interno.n_items = 0;
+    buffer_interno.paquetArray = (paquet_t *)malloc(sizeof(paquet_t));
+
+    //! Crear el semáforo para garantizar exclusión mutua en la BD
+    if (sem_init(&semaforo_bd, 0, 1))
+    {
+        perror("Semaforo");
+
+        // Liberar los recursos
+        // Eliminar lista de clientes
+        free(clients.clientArray);
+        // Deshacer el pipe de Servidor
+        close(readPipe);
+        unlink(pipeCLNT_SRVR);
+        exit(ERROR_FATAL);
+    }
+
+    //! Crear el semáforo para garantizar exclusión mutua en los clientes
+    if (sem_init(&semaforo_clientes, 0, 1))
+    {
+        perror("Semaforo");
+
+        // Liberar los recursos
+        // Eliminar lista de clientes
+        free(clients.clientArray);
+        // Deshacer el pipe de Servidor
+        close(readPipe);
+        unlink(pipeCLNT_SRVR);
+        exit(ERROR_FATAL);
+    }
+
+    //! Llamar al hilo auxiliar
+    struct arg_buffer parametros_buffer;
+    parametros_buffer.booksDatabase = booksDatabase;
+    parametros_buffer.buffer = &buffer_interno;
+    parametros_buffer.clients = &clients;
+    pthread_t hilo_aux;
+    pthread_create(&hilo_aux, NULL, (void *)manejadorBuffer, (void *)&parametros_buffer);
+
     // Leer contenidos del pipe continuamente hasta que no hayan lectores
     while (read(readPipe, &package, sizeof(package)) != 0)
     {
-        // Interpretar el tipo de mensaje
-        switch (package.type)
-        {
-        case SIGNAL: //! Cuando se recibe una SEÑAL
-            return_status = interpretarSenal(&clients, package);
-            if (return_status != SUCCESS_GENERIC)
-            {
-                fprintf(stderr,
-                        "Hubo un problema en la solicitud del cliente (%d)\n",
-                        package.client);
-                fprintf(stderr, "SEÑAL: Código de error: %d\n", return_status);
-            }
-            break;
-
-        case BOOK: //! Cuando se recibe un LIBRO
-                   // Aquí va la función que maneja los libros
-            return_status = manejarLibros(&clients, package, booksDatabase);
-            if (return_status != SUCCESS_GENERIC)
-            {
-                fprintf(stderr,
-                        "Hubo un problema en la solicitud del cliente (%d)\n",
-                        package.client);
-                fprintf(stderr, "LIBRO: Código de error: %d\n", return_status);
-            }
-            break;
-
-        case ERR: // Same as default
-        default:
-            fprintf(stderr, "Hubo un problema en la solicitud del cliente (%d)\n",
-                    package.client);
-            break;
-        }
+        // Montar la petición al arreglo de peticiones
+        queue(&buffer_interno, package);
     }
 
     //TODO: Hacer que espere un rato para ver si se vuelve a conectar un cliente
-
     // Notificación
     fprintf(stdout,
             "\nTodos los clientes se han desconectado, cerrando el servidor...\n");
@@ -116,6 +134,10 @@ int main(int argc, char *argv[])
     // Deshacer el pipe de Servidor
     close(readPipe);
     unlink(pipeCLNT_SRVR);
+
+    // Liberar el semáforo
+    sem_destroy(&semaforo_bd);
+    sem_destroy(&semaforo_clientes);
 
     // Notificación
     fprintf(stdout,
@@ -519,6 +541,9 @@ client_t crearCliente(int pipefd, pid_t clientpid, char *pipenom)
 
 int guardarCliente(struct client_list *clients, client_t client)
 {
+    //! Esta función es una región crítica
+    sem_wait(&semaforo_clientes);
+
     // Add 1 to the client counter
     int pos_newClient = clients->n_clients++;
 
@@ -542,11 +567,15 @@ int guardarCliente(struct client_list *clients, client_t client)
     // Store the new client
     clients->clientArray[pos_newClient] = client;
 
+    sem_post(&semaforo_clientes);
     return SUCCESS_GENERIC;
 }
 
 int removerCliente(struct client_list *clients, pid_t clientToRemove)
 {
+    //! Esta función es una región crítica
+    sem_wait(&semaforo_clientes);
+
     // Search for the client to remove and move it to the last position
     if (clients->clientArray[clients->n_clients - 1].clientPID != clientToRemove)
     {
@@ -594,6 +623,7 @@ int removerCliente(struct client_list *clients, pid_t clientToRemove)
     // Set the new pointer
     clients->clientArray = aux;
 
+    sem_post(&semaforo_clientes);
     return SUCCESS_GENERIC;
 }
 
@@ -1033,4 +1063,69 @@ int manejarLibros(
     }
 
     return SUCCESS_GENERIC;
+}
+
+void *manejadorBuffer(struct arg_buffer *params)
+{
+    buffer_t *buffer = params->buffer;
+    struct client_list *clients = params->clients;
+    book_t *booksDatabase = params->booksDatabase;
+
+    while (true)
+    {
+        // Obtener el paquete
+        paquet_t *package = getLast(buffer);
+
+        if (package == NULL)
+            continue;
+
+        printf("\nHilo auxiliar: Procesando petición...\n");
+
+        int return_status = 0;
+
+        switch (package->type)
+        {
+        case SIGNAL: //! Cuando se recibe una SEÑAL
+
+            // Hay una región crítica en esta parte
+            return_status = interpretarSenal(clients, *package);
+            if (return_status != SUCCESS_GENERIC)
+            {
+                fprintf(stderr,
+                        "Hubo un problema en la solicitud del cliente (%d)\n",
+                        package->client);
+                fprintf(stderr, "SEÑAL: Código de error: %d\n", return_status);
+            }
+            break;
+
+        case BOOK: //! Cuando se recibe un LIBRO
+                   // Aquí va la función que maneja los libros
+
+            //! Entrando en una región crítica (Base de datos)
+            sem_wait(&semaforo_bd);
+
+            return_status = manejarLibros(clients, *package, booksDatabase);
+            if (return_status != SUCCESS_GENERIC)
+            {
+                fprintf(stderr,
+                        "Hubo un problema en la solicitud del cliente (%d)\n",
+                        package->client);
+                fprintf(stderr, "LIBRO: Código de error: %d\n", return_status);
+            }
+
+            //! Saliendo de la región crítica
+            sem_post(&semaforo_bd);
+
+            break;
+
+        case ERR: // Same as default
+        default:
+            fprintf(stderr, "Hubo un problema en la solicitud del cliente (%d)\n",
+                    package->client);
+            break;
+        }
+
+        // Sacar a la petición de la lista
+        dequeue(buffer);
+    }
 }
