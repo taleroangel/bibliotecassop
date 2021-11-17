@@ -12,6 +12,7 @@
 
 /* ------------------------------  Libraries ------------------------------ */
 #define _XOPEN_SOURCE // Para la función strptime()
+#define _POSIX_C_SOURCE 200809L
 
 // ISO C libraries
 #include <stdio.h>
@@ -27,6 +28,7 @@
 #include <sys/stat.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <signal.h>
 
 // Header propias
 #include "server.h"
@@ -36,8 +38,11 @@
 #include "buffer.h"
 
 /* -------------------- Variables globales (Semáforos) -------------------- */
+
 sem_t semaforo_bd = {0};
 sem_t semaforo_clientes = {0};
+
+volatile bool isListening = true;
 
 /* --------------------------------- Main --------------------------------- */
 int main(int argc, char *argv[])
@@ -46,84 +51,115 @@ int main(int argc, char *argv[])
         inputFilename[TAM_STRING],
         outputFilename[TAM_STRING];
 
-    // Manejar los argumentos
+    //! 1. Manejar los argumentos
+    // 1.1 Cargar los argumentos
     manejarArgumentos(argc, argv, pipeCLNT_SRVR, inputFilename, outputFilename);
 
-    // Verificar que el archivo de persistencia existe
-    //TODO: Si no existe, crearlo
+    // 1.2 Verificar que el archivo de persistencia existe, si no existe, crearlo
     if (access(outputFilename, F_OK) != 0)
     {
-        perror("Servidor");
-        exit(ERROR_APERTURA_ARCHIVO);
+        fprintf(stderr, "El archivo espeficifado de persistencia no existe...\n");
+        fprintf(stdout, "Creando el archivo\n");
+
+        // Crear el archivo
+        int tmp_fd = open(outputFilename, O_WRONLY | O_CREAT, 0777);
+        if (tmp_fd < 0)
+        {
+            perror(outputFilename);
+            exit(ERROR_APERTURA_ARCHIVO);
+        }
+
+        if (close(tmp_fd) < 0)
+        {
+            perror(outputFilename);
+            exit(ERROR_CIERRE_ARCHIVO);
+        }
     }
 
-    // Lista con los libros
+    //! 2. Base de datos
+    // 2.1 Crear el arreglo de base de datos
     book_t booksDatabase[MAX_CANT_LIBROS];
-
-    // Abrir la base de datos
+    // 2.2 Abrir la base de datos
     int n_libros = leerDatabase(booksDatabase, inputFilename);
 
-    // Iniciar la comunicación (Escuchar a cualquier cliente)
+    //! 3. Iniciar la comunicación (Escuchar a cualquier cliente)
     int readPipe = iniciarComunicacion(pipeCLNT_SRVR);
 
-    // Crear lista de los clientes (Memoria Dinámica)
+    // 3.2 Crear lista de los clientes (Memoria Dinámica)
     struct client_list clients;
     clients.n_clients = 0;
     clients.clientArray = (client_t *)malloc(sizeof(client_t));
 
-    // Paquete temporal donde se guarda lo recibido por el pipe
+    // 3.3 Paquete temporal donde se guarda lo recibido por el pipe
     paquet_t package;
-    int return_status;
 
-    //! Buffer interno con las peticiones
+    //! 4. Buffer interno con las peticiones
+    // Crear el buffer intero
     buffer_t buffer_interno;
-    buffer_interno.n_items = 0;
-    buffer_interno.paquetArray = (paquet_t *)malloc(sizeof(paquet_t));
+    init(&buffer_interno);
 
-    //! Crear el semáforo para garantizar exclusión mutua en la BD
+    //! 5. Crear los semáforos para exclusión mutua
+    // 5.1 Crear el semáforo para garantizar exclusión mutua en la BD
     if (sem_init(&semaforo_bd, 0, 1))
     {
         perror("Semaforo");
-
-        // Liberar los recursos
-        // Eliminar lista de clientes
+        // Liberar los recursos y salir
         free(clients.clientArray);
-        // Deshacer el pipe de Servidor
         close(readPipe);
         unlink(pipeCLNT_SRVR);
         exit(ERROR_FATAL);
     }
 
-    //! Crear el semáforo para garantizar exclusión mutua en los clientes
+    //  5.2 Crear el semáforo para garantizar exclusión mutua en los clientes
     if (sem_init(&semaforo_clientes, 0, 1))
     {
         perror("Semaforo");
-
-        // Liberar los recursos
-        // Eliminar lista de clientes
+        // Liberar los recursos y salir
         free(clients.clientArray);
-        // Deshacer el pipe de Servidor
         close(readPipe);
         unlink(pipeCLNT_SRVR);
         exit(ERROR_FATAL);
     }
 
-    //! Llamar al hilo auxiliar
+    //! 6. Llamar al hilo auxiliar
+    //6.1 Crear la estuctura con los parámetros
     struct arg_buffer parametros_buffer;
     parametros_buffer.booksDatabase = booksDatabase;
     parametros_buffer.buffer = &buffer_interno;
     parametros_buffer.clients = &clients;
+
+    // 6.2 Crear el hilo auxiliar
     pthread_t hilo_aux;
     pthread_create(&hilo_aux, NULL, (void *)manejadorBuffer, (void *)&parametros_buffer);
 
+    // 6.3 Cargar el manejador de señales
+    signal(SIGINT, manejadorInterrupcion);
+
+    //! 7. Empezar a escuchar peticiones
     // Leer contenidos del pipe continuamente hasta que no hayan lectores
-    while (read(readPipe, &package, sizeof(package)) != 0)
+    bool messageShown = false;
+    while (isListening)
     {
+        // 7.1 Leer del pipe
+        int read_val = read(readPipe, &package, sizeof(package));
+
+        if (read_val == 0)
+        {
+            if (!messageShown)
+            {
+                fprintf(stdout, "\n\aTodos los clientes se han desconectado\n");
+                fprintf(stdout, "Esperando otras conexiones... (Presione Ctrl+C para detener)\n");
+                messageShown = true;
+            }
+            continue; // Saltar el queue
+        }
+
+        messageShown = false;
         // Montar la petición al arreglo de peticiones
         queue(&buffer_interno, package);
     }
 
-    //TODO: Hacer que espere un rato para ver si se vuelve a conectar un cliente
+    //! 8. Cierre (Liberación de recursos)
     // Notificación
     fprintf(stdout,
             "\nTodos los clientes se han desconectado, cerrando el servidor...\n");
@@ -135,16 +171,24 @@ int main(int argc, char *argv[])
     close(readPipe);
     unlink(pipeCLNT_SRVR);
 
+    // Unir el thread
+    pthread_kill(hilo_aux, SIGINT); // Mandar la misma interrupción al hilo
+    pthread_join(hilo_aux, (void **)NULL);
+
     // Liberar el semáforo
     sem_destroy(&semaforo_bd);
     sem_destroy(&semaforo_clientes);
+
+    // Liberar el buffer interno
+    destroy(&buffer_interno);
 
     // Notificación
     fprintf(stdout,
             "Se ha cerrado el pipe (Cliente->Servidor)...\n");
 
-    // El archivo de entrada ya está cerrado, no hace falta cerrarlo
+    //* El archivo de entrada ya está cerrado, no hace falta cerrarlo
 
+    //! 9. Cierre (Actualización final a la BD)
     // Actualizar la BD (Persistencia de la BD)
     if (actualizarDatabase(outputFilename, booksDatabase, n_libros))
     {
@@ -158,7 +202,7 @@ se reintentará la escritura al archivo..\n");
                     "El archivo de la base de datos puede estar dañado,\
 los cambios a la BD se mostrarán por pantalla:\n");
 
-            //TODO: Mostrar la BD
+            mostrarDatabasePantalla(booksDatabase, n_libros);
         }
     }
 
@@ -252,6 +296,12 @@ void manejarArgumentos(int argc,
         argv += 2; // Mover el puntero de argumentos
         argc -= 2; // Reducir cantidad de argumentos para el while
     }
+}
+
+void manejadorInterrupcion(int foo)
+{
+    printf("\nAVISO: Se ha detenido la ejecución\n");
+    isListening = false;
 }
 
 /* ----------------------- Manejo de la Base de Datos ----------------------- */
@@ -357,6 +407,41 @@ int actualizarDatabase(const char filename[],
 
     fprintf(stdout, "Database: Actualización satisfactoria\n");
     return SUCCESS_GENERIC;
+}
+
+void mostrarDatabasePantalla(book_t booksDatabase[], int tam_database)
+{
+    fprintf(stdout, "\nBASE DE DATOS:\n");
+
+    char buffer[TAM_STRING];
+    memset(buffer, 0, sizeof(buffer)); // Initialize buffer in 0
+
+    for (int i = 0; i < tam_database; i++)
+    {
+        // Check if header printing is necessary
+        if (strcmp(buffer, booksDatabase[i].name) != 0)
+        {
+            // Header printing is required
+            fprintf(stdout, "%s,%d,%d\n",
+                    booksDatabase[i].name, booksDatabase[i].ISBN,
+                    booksDatabase[i].n_copies);
+        }
+
+        // Print copy
+        fprintf(stdout, "%d,%c,%s",
+                booksDatabase[i].copyInfo.n_copy,
+                booksDatabase[i].copyInfo.state,
+                booksDatabase[i].copyInfo.date);
+
+        // Print endl
+        if (i < tam_database - 1)
+            fprintf(stdout, "\n");
+
+        // Save the buffer
+        strcpy(buffer, booksDatabase[i].name);
+    }
+
+    fprintf(stdout, "\nFIN DE BASE DE DATOS\n\b");
 }
 
 /* ----------------------- Protocolos de comunicación ----------------------- */
@@ -508,6 +593,9 @@ int interpretarSenal(struct client_list *clients, paquet_t package)
     case STOP_COM:
         return retirarCliente(clients, package);
         break;
+
+    default:
+        return FAILED_COM;
     }
 
     return FAILURE_GENERIC;
@@ -567,6 +655,7 @@ int guardarCliente(struct client_list *clients, client_t client)
     // Store the new client
     clients->clientArray[pos_newClient] = client;
 
+    //! Fin de la región crítica
     sem_post(&semaforo_clientes);
     return SUCCESS_GENERIC;
 }
@@ -623,6 +712,7 @@ int removerCliente(struct client_list *clients, pid_t clientToRemove)
     // Set the new pointer
     clients->clientArray = aux;
 
+    //! Fin de la región crítica
     sem_post(&semaforo_clientes);
     return SUCCESS_GENERIC;
 }
@@ -1067,27 +1157,36 @@ int manejarLibros(
 
 void *manejadorBuffer(struct arg_buffer *params)
 {
+    //! 1. Desempaquetar los parámetros y guardarlos en variables más sencillas
     buffer_t *buffer = params->buffer;
     struct client_list *clients = params->clients;
     book_t *booksDatabase = params->booksDatabase;
 
-    while (true)
+    // Esto ocurre hasta que el padre detenga al hilo
+    while (isListening)
     {
-        // Obtener el paquete
-        paquet_t *package = getLast(buffer);
 
-        if (package == NULL)
-            continue;
+        //! 2. Obtener el paquete
+        //* Si no hay paquete disponibles el hilo se BLOQUEA por un semáforo
+        paquet_t *package = getNext(buffer);
 
+        if (!isListening)
+        {
+            printf("\n\aHilo auxiliar: Terminando ejecución...\n");
+            break;
+        }
+
+        // Mostrar una notificación
         printf("\nHilo auxiliar: Procesando petición...\n");
 
+        //! 3. Interpretar el paquete
         int return_status = 0;
-
         switch (package->type)
         {
-        case SIGNAL: //! Cuando se recibe una SEÑAL
+        case SIGNAL: //* Cuando se recibe una SEÑAL
 
-            // Hay una región crítica en esta parte
+            /* Hay una región crítica en esta parte pero se implementa dentro
+                de la misma función encargada de conectar y desconectar clientes*/
             return_status = interpretarSenal(clients, *package);
             if (return_status != SUCCESS_GENERIC)
             {
@@ -1098,8 +1197,7 @@ void *manejadorBuffer(struct arg_buffer *params)
             }
             break;
 
-        case BOOK: //! Cuando se recibe un LIBRO
-                   // Aquí va la función que maneja los libros
+        case BOOK: //* Cuando se recibe un LIBRO
 
             //! Entrando en una región crítica (Base de datos)
             sem_wait(&semaforo_bd);
@@ -1115,17 +1213,18 @@ void *manejadorBuffer(struct arg_buffer *params)
 
             //! Saliendo de la región crítica
             sem_post(&semaforo_bd);
-
             break;
 
-        case ERR: // Same as default
+        case ERR: //* Cualquier otro caso o error
         default:
             fprintf(stderr, "Hubo un problema en la solicitud del cliente (%d)\n",
                     package->client);
             break;
         }
 
-        // Sacar a la petición de la lista
+        //! 4. Sacar a la petición de la lista
         dequeue(buffer);
     }
+
+    return NULL; // No hace falta retornar nada
 }

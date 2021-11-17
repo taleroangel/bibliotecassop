@@ -2,72 +2,89 @@
 #include "buffer.h"
 #include "common.h"
 
-int queue(buffer_t *buffer_peticiones, paquet_t paquete)
+#include <semaphore.h>
+
+sem_t available_resources = {0};
+sem_t available_spaces = {0};
+
+int init(buffer_t *buffer_peticiones)
 {
-    // Add 1 to the paquet counter
-    buffer_peticiones->n_items++;
+    if (buffer_peticiones == NULL)
+        return FAILURE_GENERIC;
 
-    // Realloc memory for the new paquet
-    paquet_t *aux = // Hacer el vector más grande y guardarlo en un nuevo apuntador
-        (paquet_t *)realloc(
-            buffer_peticiones->paquetArray,
-            sizeof(paquet_t) * buffer_peticiones->n_items);
+    buffer_peticiones->current_item = 0;
 
-    // If allocation failed
-    if (aux == NULL)
+    // Initialize semaphores with resources
+    if (sem_init(&available_resources, 0, 0) ||
+        sem_init(&available_spaces, 0, BUFFER_SIZE))
     {
-        perror("Error");
-        fprintf(stderr, "No es posible agregar un nuevo paquete...");
-        return ERROR_MEMORY;
+        perror("Hilo auxiliar");
+        return FAILURE_GENERIC;
     }
-
-    // Set the new pointer
-    buffer_peticiones->paquetArray = aux;
-
-    // Move everything to the left
-    for (int i = buffer_peticiones->n_items - 1; i > 0; i--)
-    {
-        buffer_peticiones->paquetArray[i] = buffer_peticiones->paquetArray[i - 1];
-        // No se pierde ninguna posición, pero se repite la posición 0
-    }
-
-    // Store the new paquet
-    buffer_peticiones->paquetArray[0] = paquete;
 
     return SUCCESS_GENERIC;
 }
 
-paquet_t *getLast(buffer_t *buffer_peticiones)
+int queue(buffer_t *buffer_peticiones, paquet_t paquete)
 {
-    if (buffer_peticiones->n_items == 0)
+    if (buffer_peticiones == NULL)
+        return FAILURE_GENERIC;
+
+    // Esperar que haya un espacio disponible en cola
+    if (sem_wait(&available_spaces))
+    {
+        perror("Hilo auxiliar");
+        return FAILURE_GENERIC;
+    }
+
+    // Agregar a la cola
+    buffer_peticiones->paquetArray[buffer_peticiones->current_item] = paquete;
+
+    // Otorgar un recurso
+    if (sem_post(&available_resources))
+    {
+        perror("Hilo auxiliar");
+        return FAILURE_GENERIC;
+    }
+
+    return SUCCESS_GENERIC;
+}
+
+int destroy(buffer_t *buffer_peticiones)
+{
+    if (buffer_peticiones == NULL)
+        return FAILURE_GENERIC;
+
+    if (sem_destroy(&available_spaces) || sem_destroy(&available_resources))
+    {
+        perror("Hilo auxiliar");
+        return FAILURE_GENERIC;
+    }
+    return SUCCESS_GENERIC;
+}
+
+paquet_t *getNext(buffer_t *buffer_peticiones)
+{
+    if (buffer_peticiones == NULL)
         return NULL;
-    return &buffer_peticiones->paquetArray[buffer_peticiones->n_items - 1];
+
+    // Esperar a que haya un recurso disponible en cola
+    sem_wait(&available_resources);
+    return &buffer_peticiones->paquetArray[buffer_peticiones->current_item];
 }
 
 int dequeue(buffer_t *buffer_peticiones)
 {
-    // Realloc the array
-    if (buffer_peticiones->n_items >= 1)
-        buffer_peticiones->n_items--;
-    else
+    if (buffer_peticiones == NULL)
         return FAILURE_GENERIC;
 
-    // Realloc memory for the new paquet
-    paquet_t *aux = // Hacer el vector más grande y guardarlo en un nuevo apuntador
-        (paquet_t *)realloc(
-            buffer_peticiones->paquetArray,
-            sizeof(paquet_t) * buffer_peticiones->n_items);
-
-    // If allocation failed
-    if (aux == NULL)
+    if (sem_post(&available_spaces))
     {
-        perror("Error");
-        fprintf(stderr, "No es posible eliminar un paquete...\n");
-        return ERROR_MEMORY;
+        perror("Hilo auxiliar");
+        return FAILURE_GENERIC;
     }
 
-    // Set the new pointer
-    buffer_peticiones->paquetArray = aux;
-
+    // Mover al siguiente elemento
+    buffer_peticiones->current_item = (buffer_peticiones->current_item + 1) % BUFFER_SIZE;
     return SUCCESS_GENERIC;
 }

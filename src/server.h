@@ -78,6 +78,13 @@ static void manejarArgumentos(
     char *fileIn,
     char *fileOut);
 
+/**
+ * @brief Manejar una señal
+ * 
+ * @param foo Dummy
+ */
+void manejadorInterrupcion(int foo);
+
 /* ----------------------- Manejo de la Base de Datos ----------------------- */
 /**
  * @brief Abrir el archivo de BD y almacenar todos los libros
@@ -102,6 +109,14 @@ int leerDatabase(book_t booksDatabase[], const char filename[]);
 int actualizarDatabase(const char filename[],
                        book_t booksDatabase[],
                        int tam_database);
+
+/**
+ * @brief Mostrar la database en pantalla como alternativa
+ * 
+ * @param booksDatabase Arreglo de base de datos
+ * @param tam_database Tamaño de la base de datos
+ */
+void mostrarDatabasePantalla(book_t booksDatabase[], int tam_database);
 
 /* ----------------------- Protocolos de comunicación ----------------------- */
 
