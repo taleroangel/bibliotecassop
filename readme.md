@@ -23,9 +23,11 @@ Para eliminar todos los archivos generados por make (incluye binarios y document
 ### Servidor
 El Servidor se encarga de leer y manipular la Base de Datos (BD) de los libros, los operaciones a realizar en la BD están dadas por las peticiones que hagan los Clientes al Servidor ([véase ¿Cómo se envían información entre Cliente y Servidor?](#¿cómo-se-envía-información-entre-cliente-y-servidor)), debe crear el Servidor antes que cualquier Cliente de la siguiente manera:
 
-> Uso: ./server -p pipeServidor -f baseDeDatos
+> Uso: ./server -p pipeServidor -f baseDeDatos -s archivoPersistencia
 
-el flag -f se utiliza para específicar el archivo de texto donde se almacena la base de datos de todos los libros ([veáse Base de datos](#base-de-datos))
+- el flag -f se utiliza para específicar el archivo de texto donde se almacena la base de datos de todos los libros ([veáse Base de datos](#base-de-datos))
+
+- el flag -s se utiliza para específicar el archivo de texto donde se almacenarán los cambios realizados a la base de datos. ([veáse Base de datos](#base-de-datos))
 
 ### Cliente
 El Cliente se encargará de recibir las peticiones a realizar y se las enviará al Servidor ([véase Servidor](#servidor)).<br>
@@ -72,15 +74,18 @@ La comunicación entre Clientes y Servidor se da mediante pipes nominales de la 
 
 Según lo anterior, existen múltiples pipes (Servidor-> Cliente) pero sólo un pipe(Cliente-> Servidor) y será el creador del pipe el encargado de borrarlo al finalizar ([véase Protocolo de comunicación](#protocolo-de-comunicación))
 
+### Hilo receptor
+El proceso Servidor se apoya en el uso de un 'Hilo Receptor', el Servidor se encarga de encolar en un buffer interno de tamaño 'BUFFER_SIZE' todas las peticiones y este 'Hilo Receptor' que corre de manera pararela junto al proceso Servidor, se encarga de desencolar las peticiones y actualizar la Base de datos interna, para coordinar el proceso Servidor y el Hilo receptor se utilizan semáforos de POSIX, mediante la implementación de cuatro de estos semáforos se logran coordinar proceso Servidor con el Hilo Receptor así como todos los Clientes que quieran modificar la Base de datos
+
 ### Paquetes
-Para evitar problemas en la escritura y lectura de información en el pipe, tanto Clientes como Servidor escriben y reciben datos de tipo <<i> data_t</i> > , esta estructura es lo único que se puede leer y escribir de los pipes y usualmente nos referimos a ella como 'paquete', este paquete contiene el PID del cliente quien manda la petición, un indicador del tipo de paquete ([véase Tipo de Paquete](#tipo-de-paquete)), y una unión a la información del paquete
+Para evitar problemas en la escritura y lectura de información en el pipe, tanto Clientes como Servidor escriben y reciben datos de tipo <<i> paquet_t</i> > , esta estructura es el único tipo de dato que se puede leer y escribir desde y hacia los pipes y usualmente nos referimos a ella como 'paquete', este paquete contiene el PID del cliente quien manda la petición, un indicador del tipo de paquete ([véase Tipo de Paquete](#tipo-de-paquete)), y una unión a la información del paquete
 
 ##### Tipo de paquete
 Existen tres tipos de paquetes que pueden ser enviados: [SIGNAL](#signal), [BOOK](#book) y [ERR](#err)
 
 ###### SIGNAL
 Este tipo de paquete indica que se está enviando una señal (Usualmente el Servidor manda una señal al Cliente de que la operación fue exitosa o que el libro no existe)
-(data_t.data.signal)
+(paquet_t.data.signal)
 
 **Listado de señales:**
 _Señales de peticiones:_
@@ -100,7 +105,7 @@ _Señales de confirmación de comunicación:_
 | FAILED_COM  	| -2     	| Señal de fallo en la comunicación (TERMINACIÓN) 	|
 
 ###### BOOK
-Este tipo de paquete contiene la información de un libro, usualmente el Cliente envía este tipo de paquete al Servidor para solicitar, renovar o devolver un libro, (data_t.data.libro)
+Este tipo de paquete contiene la información de un libro, usualmente el Cliente envía este tipo de paquete al Servidor para solicitar, renovar o devolver un libro, (paquet_t.data.libro)
 
 Cada libro tiene un tipo de petición: SOLICITAR, RENOVAR, DEVOLVER y BUSCAR que el Servidor puede leer
 ###### ERR
@@ -148,8 +153,11 @@ Este tipo de dato no está asociado a ninguna estructura, se usa para indicar un
 8. El proceso Cliente finaliza
 
 ## Diagrama de secuencia
-Representación gráfica del proceso de comunicación ([véase Protocolo de comunicación](#protocolo-de-comunicación))<br>
-![DiagramaDeSecuencia](./docs/img/DiagramaSecuencia.png)
+Representación gráfica del funcionamiento de todo el sistema
+![DiagramaDeSecuencia](./docs/img/DiagramaDeSecuencia.png)
+
+Representación gráfica del proceso de comunicación ([véase Protocolo de comunicación](#protocolo-de-comunicación))
+![DiagramaDeSecuencia](./docs/img/DiagramaComunicacion.png)
 
 ## Lista de códigos de error
 Si existe un error en la ejecución de alguno de los procesos o solicitudes, el programa puede retornar alguno de los siguientes códigos de error:
