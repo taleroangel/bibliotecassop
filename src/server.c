@@ -172,7 +172,7 @@ int main(int argc, char *argv[])
     unlink(pipeCLNT_SRVR);
 
     // Unir el thread
-    pthread_kill(hilo_aux, SIGINT); // Mandar la misma interrupción al hilo
+    pthread_kill(hilo_aux, SIGUSR1); // Mandar la misma interrupción al hilo
     pthread_join(hilo_aux, (void **)NULL);
 
     // Liberar el semáforo
@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
     fprintf(stdout,
             "Se ha cerrado el pipe (Cliente->Servidor)...\n");
 
-    //* El archivo de entrada ya está cerrado, no hace falta cerrarlo
+    //* El archivo de entrada ya está cerrado, no hace falta cerrarlo*/
 
     //! 9. Cierre (Actualización final a la BD)
     // Actualizar la BD (Persistencia de la BD)
@@ -1162,12 +1162,15 @@ void *manejadorBuffer(struct arg_buffer *params)
     struct client_list *clients = params->clients;
     book_t *booksDatabase = params->booksDatabase;
 
+    // Activar el manejador de señales
+    signal(SIGUSR1, manejadorInterrupcion);
+
     // Esto ocurre hasta que el padre detenga al hilo
     while (isListening)
     {
 
         //! 2. Obtener el paquete
-        //* Si no hay paquete disponibles el hilo se BLOQUEA por un semáforo
+        //* Si no hay paquete disponibles el hilo se BLOQUEA por un semáforo*/
         paquet_t *package = getNext(buffer);
 
         if (!isListening)
@@ -1183,7 +1186,7 @@ void *manejadorBuffer(struct arg_buffer *params)
         int return_status = 0;
         switch (package->type)
         {
-        case SIGNAL: //* Cuando se recibe una SEÑAL
+        case SIGNAL: //* Cuando se recibe una SEÑAL*/
 
             /* Hay una región crítica en esta parte pero se implementa dentro
                 de la misma función encargada de conectar y desconectar clientes*/
@@ -1197,7 +1200,7 @@ void *manejadorBuffer(struct arg_buffer *params)
             }
             break;
 
-        case BOOK: //* Cuando se recibe un LIBRO
+        case BOOK: //* Cuando se recibe un LIBRO*/
 
             //! Entrando en una región crítica (Base de datos)
             sem_wait(&semaforo_bd);
@@ -1215,7 +1218,7 @@ void *manejadorBuffer(struct arg_buffer *params)
             sem_post(&semaforo_bd);
             break;
 
-        case ERR: //* Cualquier otro caso o error
+        case ERR: //* Cualquier otro caso o error*/
         default:
             fprintf(stderr, "Hubo un problema en la solicitud del cliente (%d)\n",
                     package->client);
