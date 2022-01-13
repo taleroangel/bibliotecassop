@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
                 }
 
                 bool renovado = false;
-                for (int j = 0; j < libro.n_copies; j++)
+                for (int j = 1; j <= libro.n_copies; j++)
                 {
                     printf("Intentando renovar ejemplar #%d", j);
                     // Por cada ejemplar hacer el intento de renovar
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
                 }
 
                 bool devuelto = false;
-                for (int j = 0; j < libro.n_copies; j++)
+                for (int j = 1; j <= libro.n_copies; j++)
                 {
                     printf("Intentando devolver ejemplar #%d", j);
                     // Por cada ejemplar hacer el intento de renovar

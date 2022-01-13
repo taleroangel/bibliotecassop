@@ -39,9 +39,14 @@ $(BLD_DIR)/buffer.o: $(SRC_DIR)/buffer.c $(SRC_DIR)/buffer.h $(COMMON)
 
 .PHONY: clean
 clean:
-	@rm -rf $(BLD_DIR)/ $(BIN_DIR)/ $(DOC_DIR)
-	@unlink ./docs/Documentacion.html
+	@rm -rf $(BLD_DIR)/ $(BIN_DIR)/
+	
 	@echo -e "Se eliminaron los ejecutables"
+
+.PHONY: cleandocs
+cleandocs:
+	@unlink ./docs/Documentacion.html
+	@rm -rf $(DOC_DIR)
 
 .PHONY: docs
 docs:
