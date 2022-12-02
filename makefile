@@ -14,7 +14,7 @@ all: pre main
 
 pre:
 	@mkdir -p $(BIN_DIR) $(BLD_DIR)
-	@cp ./archivo_prueba/* $(BIN_DIR)*
+	@cp ./test/* $(BIN_DIR)*
 	@echo -e "Los ejecutables se encuentran en la carpeta '$(BIN_DIR)'"
 
 main: $(BIN_DIR)/server $(BIN_DIR)/client

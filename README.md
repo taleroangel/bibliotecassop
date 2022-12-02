@@ -1,5 +1,47 @@
 # Bibliotecas SOP
-BibliotecasSOP es un sistema de gestión bibliotecario para Solicitar, Renovar o Devolver libros. Se compone de un único Servidor al cual múltiples Clientes pueden conectarse y procesas solicitudes
+BibliotecasSOP es un sistema de gestión bibliotecario para Solicitar, Renovar o Devolver libros. Se compone de un único Servidor al cual múltiples Clientes pueden conectarse y procesas solicitudes a través de [Llamadas al Sistema](https://es.wikipedia.org/wiki/Llamada_al_sistema) y [UNIX Pipelines](https://en.wikipedia.org/wiki/Pipeline_(Unix)) de [POSIX](https://es.wikipedia.org/wiki/POSIX)
+
+![Intro](docs/intro.png)
+
+## Introducción
+La comunicación entre Cliente/Servidor se da a través de __Pipelines de UNIX__ que son usados a través de __Llamadas al Sistema de POSIX__. Este programa al ser concurrente también hace uso de hilos __phread__ y __Semáforos de UNIX__
+
+| SOP                           | Capturas de Pantalla          |
+| ----------------------------- | ----------------------------- |
+| ![Server](docs/server.png)    | ![Client 1](docs/client1.png) |
+| ![Client 2](docs/client2.png) | ![Client 3](docs/client3.png) |
+
+## Tabla de Contenidos
+- [Bibliotecas SOP](#bibliotecas-sop)
+	- [Introducción](#introducción)
+	- [Tabla de Contenidos](#tabla-de-contenidos)
+	- [Compilación](#compilación)
+					- [Ejecutables](#ejecutables)
+					- [Documentación](#documentación)
+					- [Limpiar](#limpiar)
+	- [Uso](#uso)
+		- [Servidor](#servidor)
+		- [Cliente](#cliente)
+	- [Archivos de texto](#archivos-de-texto)
+		- [Base de datos](#base-de-datos)
+				- [Estado](#estado)
+		- [Archivo de peticiones](#archivo-de-peticiones)
+				- [Peticion](#peticion)
+	- [¿Cómo se envía información entre Cliente y Servidor?](#cómo-se-envía-información-entre-cliente-y-servidor)
+		- [Pipes](#pipes)
+		- [Hilo receptor](#hilo-receptor)
+		- [Paquetes](#paquetes)
+				- [Tipo de paquete](#tipo-de-paquete)
+					- [SIGNAL](#signal)
+					- [BOOK](#book)
+					- [ERR](#err)
+	- [Protocolo de comunicación](#protocolo-de-comunicación)
+		- [Apertura de la comunicación](#apertura-de-la-comunicación)
+		- [Cierre de la comunicación](#cierre-de-la-comunicación)
+	- [Diagrama de secuencia](#diagrama-de-secuencia)
+	- [Lista de códigos de error](#lista-de-códigos-de-error)
+	- [Créditos](#créditos)
+
 
 ## Compilación
 ###### Ejecutables
@@ -197,7 +239,8 @@ _Otros errores:_
 | ERROR_SOLICITUD     	| 12     	| Solicitud inválida              	|
 
 ## Créditos
-Proyecto para la materia de Sistemas Operativos<br>
+Proyecto para la materia de Sistemas Operativos\
+Profesora: Mariela Curiel\
 Pontificia Universidad Javeriana, Facultad de Ingeniería 2021
 
 * Ángel David Talero

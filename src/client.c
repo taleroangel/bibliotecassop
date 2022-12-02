@@ -471,7 +471,6 @@ void iniciarComunicacion(
                 fprintf(stderr, "Demasiados intentos, abortando...\n");
 
                 // Cerrar los archivos abiertos
-                close(pipe[READ]);
                 close(pipe[WRITE]);
                 unlink(pipeSRVR_CLNT);
 
